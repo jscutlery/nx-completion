@@ -40,45 +40,81 @@ _workspace_def() {
 # uses jq dependency to parse and manipulate JSON file
 # instead of using a dirty grep or sed.
 _list_projects() {
+  [[ $PREFIX = -* ]] && return 1
+  integer ret=1
   local def=$(_workspace_def)
-  local -a json
+  local -a projects
+  # Parse workspace def,
+  # create JSON array from projects name,
+  # and transform to zsh array.
+  projects=($(< $def | jq '.projects' | jq -r 'keys[]'))
 
-  # Parse JSON and acces to projects name: def.projects[project_name]
-  json=$(< $def | jq '.projects' | jq -r 'keys[]')
-
-  echo $json
+  # Autocomplete projects as an option, and append ':' (eg: nx run demo:build).
+  _describe -t projects "projects option" projects -qS ":" && ret=0 
+  return ret
 }
 
-_run_command_completion() {
-  # Only run on `nx run ?`
-  [[ ! "$(_count_args)" = "3" ]] && return
-
-  # List projects
-  _values $(_list_projects)
+_nx_arguments() {
+    if zstyle -t ":completion:${curcontext}:" option-stacking; then
+        print -- -s
+    fi
 }
 
-_nx_commands_completion() {
-  _values \
-    'subcommand' \
-      'run[Run a target for a project (e.g., nx run myapp:serve:production)]'
-      # 'generate[Generate code (e.g., nx generate @nrwl/web:app myapp)]'
+_nx_commands() {
+  local -a lines
+  # Run nx to get command list output.
+  lines=(${(f)"$(_call_program commands nx 2>&1)"})
+  _nx_subcommands=(${${${(M)${lines[$((${lines[(i)*Commands:]} + 1)),-1]}:# *}## #}/ ##/:})
+
+  _describe -t nx-commands "nx command" _nx_subcommands
+}
+
+_nx_subcommand() {
+    integer ret=1
+    local -a opts_help
+
+    opts_help=("--help[Show help]")
+
+    case "$words[1]" in
+      (run)
+        _arguments $(_nx_arguments) \
+          $opts_help \
+          ": :_list_projects" && ret=0
+          case
+            # @todo: handle executors
+            # but no clue how! shell is not far from hell
+
+      ;;
+    esac
+
+    return ret
 }
 
 _nx_completion() {
-  # Show nx commands if not typed yet.
-  [[ $(_count_args) -le 2 ]] && _nx_commands_completion && return
-
   # Display an error if no workspace definition found.
   [[ $(_check_workspace_def) -eq 1 ]] && echo "error: workspace definition not found" && return
+
+  integer ret=1
+  typeset -A opt_args
+  local curcontext="$curcontext"
   
-  # Load completion commands
-  case "$(_nx_command)" in
-    run)
-      _run_command_completion
-      ;;
-    g|generate)
-      # @todo
-      ;;
+  _arguments $(_nx_arguments) -C \
+    "--help[Show help]" \
+    "--version[Show version number]" \
+    ": :->command" \
+    "*:: :->option-or-argument" && ret=0
+
+
+  case $state in
+      (command)
+          _nx_commands && ret=0
+          ;;
+      (option-or-argument)
+          curcontext=${curcontext%:*:*}:nx-$words[1]:
+          _nx_subcommand && ret=0
+          ;;
   esac
+
+  return ret
 }
 compdef _nx_completion nx
