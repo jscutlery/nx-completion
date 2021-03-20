@@ -93,7 +93,7 @@ _nx_command() {
     (run)
       _arguments $(_nx_arguments) \
         $opts_help \
-        "(- :)-c --configuration"{-c=,--configuration=}"[A named builder configuration]: configuration:" \
+        "(-c --configuration)"{-c=,--configuration=}"[A named builder configuration]: configuration:" \
         ": :_list_projects"
       ret=0
 
@@ -112,8 +112,8 @@ _nx_command() {
         $opts_help \
         "--defaults[When true, disables interactive input prompts for options with a default]" \
         "--interactive[When false, disables interactive input prompts]" \
-        "(- :)-d --dry-run"{-d,--dry-run}"[When true, runs through and reports activity without writing out results]" \
-        "(- :)-f --force"{-f,--force}"[When true, forces overwriting of existing files]" \
+        "(-d --dry-run)"{-d,--dry-run}"[When true, runs through and reports activity without writing out results]" \
+        "(-f --force)"{-f,--force}"[When true, forces overwriting of existing files]" \
         ": :->generator"
       case $state in
         (generator)
