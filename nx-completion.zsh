@@ -55,17 +55,17 @@ _list_projects() {
 }
 
 _nx_arguments() {
-    if zstyle -t ":completion:${curcontext}:" option-stacking; then
-        print -- -s
-    fi
+  if zstyle -t ":completion:${curcontext}:" option-stacking; then
+    print -- -s
+  fi
 }
 
 _nx_commands() {
   local -a lines
-  # Run nx to get command list output.
+  # Run nx to get subcommand list output.
   lines=(${(f)"$(_call_program commands nx 2>&1)"})
+  # Format the output.
   _nx_subcommands=(${${${(M)${lines[$((${lines[(i)*Commands:]} + 1)),-1]}:# *}## #}/ ##/:})
-
   _describe -t nx-commands "nx command" _nx_subcommands
 }
 
@@ -80,11 +80,9 @@ _nx_subcommand() {
         _arguments $(_nx_arguments) \
           $opts_help \
           ": :_list_projects" && ret=0
-          case
             # @todo: handle executors
             # but no clue how! shell is not far from hell
-
-      ;;
+          ;;
     esac
 
     return ret
@@ -92,11 +90,10 @@ _nx_subcommand() {
 
 _nx_completion() {
   # Display an error if no workspace definition found.
-  [[ $(_check_workspace_def) -eq 1 ]] && echo "error: workspace definition not found" && return
+  [[ $(_check_workspace_def) -eq 1 ]] && echo "error: workspace definition not found" && return 1
 
   integer ret=1
   typeset -A opt_args
-  local curcontext="$curcontext"
   
   _arguments $(_nx_arguments) -C \
     "--help[Show help]" \
@@ -107,12 +104,11 @@ _nx_completion() {
 
   case $state in
       (command)
-          _nx_commands && ret=0
-          ;;
+        _nx_commands && ret=0
+      ;;
       (option-or-argument)
-          curcontext=${curcontext%:*:*}:nx-$words[1]:
-          _nx_subcommand && ret=0
-          ;;
+        _nx_subcommand && ret=0
+      ;;
   esac
 
   return ret
