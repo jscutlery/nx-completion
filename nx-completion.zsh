@@ -1,32 +1,51 @@
+w_defs=(
+  "$PWD/angular.json"
+  "$PWD/worspace.json"
+)
+
 _nx_command() {
   echo "${words[2]}"
-}
-
-_nx_command_arg() {
-  echo "${words[3]}"
 }
 
 _count_args() {
   echo "$#words"
 }
 
+# Check if at least one of w_defs are present in working dir.
 _check_workspace_def() {
-  local angular_def="$PWD/angular.json"
-  local workspace_def="$PWD/worspace.json"
+  local a_def=${w_defs[1]}
+  local w_def=${w_defs[2]}
 
-  if [[ ! -f $angular_def && ! -f $workspace_def ]]; then 
+  if [[ ! -f $a_def && ! -f $w_def ]]; then 
     echo 1
   else 
     echo 0
   fi
 }
 
+# Get workspace defition path.
+# Assumes _check_workspace_def get called before.
+_workspace_def() {
+  local a_def=${w_defs[1]}
+  local w_def=${w_defs[2]}
+
+  if [[ -f $a_def ]]; then
+    echo $a_def
+  else
+    echo $w_def
+  fi
+}
+
+# List projects within workspace definition file,
+# uses jq dependency to parse and manipulate JSON file
+# instead of using a dirty grep or sed.
 _list_projects() {
-  local angular_def="$PWD/angular.json"
-  local workspace_def="$PWD/worspace.json"
-  
-  # @todo: handle workspace both def type
-  json=$(< $angular_def | jq '.projects' | jq -r 'keys[]')
+  local def=$(_workspace_def)
+  local -a json
+
+  # Parse JSON and acces to projects name: def.projects[project_name]
+  json=$(< $def | jq '.projects' | jq -r 'keys[]')
+
   echo $json
 }
 
@@ -34,11 +53,8 @@ _run_command_completion() {
   # Only run on `nx run ?`
   [[ ! "$(_count_args)" = "3" ]] && return
 
-  # Recommend projects
+  # List projects
   _values $(_list_projects)
-
-  # Make sure we don't run default completion
-  custom_completion=true
 }
 
 _nx_commands_completion() {
@@ -48,7 +64,7 @@ _nx_commands_completion() {
       # 'generate[Generate code (e.g., nx generate @nrwl/web:app myapp)]'
 }
 
-_nx() {
+_nx_completion() {
   # Show nx commands if not typed yet.
   [[ $(_count_args) -le 2 ]] && _nx_commands_completion && return
 
@@ -65,4 +81,4 @@ _nx() {
       ;;
   esac
 }
-compdef _nx nx
+compdef _nx_completion nx
