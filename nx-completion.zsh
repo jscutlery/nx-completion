@@ -118,6 +118,12 @@ _nx_command() {
         "--verbose[Display additional details about internal operations during execution]" \
         ":package" && ret=0
     ;;
+    (analytics)
+      _arguments $(_nx_arguments) \
+        $opts_help \
+        "1:setting_or_project" \
+        "2:project_setting" && ret=0
+    ;;
     (run)
       _arguments $(_nx_arguments) \
         $opts_help \
