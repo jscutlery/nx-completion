@@ -2,11 +2,11 @@
 
 ![demo](https://user-images.githubusercontent.com/8522558/111908149-67e8d780-8a58-11eb-9343-691f6d664163.gif)
 
-# Install
+:warning: This plugin is at its early stages.
 
-:construction: _This plugin is at its early stages._
+## Install
 
-1. Install the dependency:
+Install the dependency, [more download](https://stedolan.github.io/jq/download/):
 
 ```sh
 apt install jq
@@ -14,13 +14,13 @@ apt install jq
 
 Note: `jq` is a lightweight command-line JSON processor.
 
-2. Clone the repository into the custom plugins directory:
+Clone the repository into the custom plugins directory:
 
 ```sh
 git clone git@github.com:jscutlery/nx-completion.git ~/.oh-my-zsh/custom/plugins/nx-completion
 ```
 
-3. Then load it as a plugin in your `.zshrc`:
+Then load it as a plugin in your `.zshrc`:
 
 ```sh
 plugins+=(nx-completion)
