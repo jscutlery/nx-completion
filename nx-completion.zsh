@@ -96,11 +96,33 @@ _nx_commands() {
   integer ret=1
   local -a lines commands
   
-  # Call nx to get the command list.
+  # Call CLI to get the command list.
   lines=(${(f)"$(_call_program commands nx 2>&1)"})
   
   # Format output: remove line breaks etc.
   commands=(${${${(M)${lines[$((${lines[(i)*Commands:]} + 1)),-1]}:# *}## #}/ ##/:})
+
+  # Add Nx related commands.
+  # @todo: Could be directly grabbed from parsing nx --help command.
+  commands+=(
+    'affected:Run task for affected projects'
+    'run-many:Run task for multiple projects'
+    'affected\:apps:Print applications affected by changes'
+    'affected\:libs:Print libraries affected by changes'
+    'affected\:build:Build applications and publishable libraries affected by changes'
+    'affected\:test:Test projects affected by changes'
+    'affected\:e2e:Run e2e tests for the applications affected by changes'
+    'affected\:lint:Lint projects affected by changes'
+    'print-affected:Graph execution plan'
+    'dep-graph:Graph dependencies within workspace'
+    'format\:check:Check for un-formatted files'
+    'format\:write:Overwrite un-formatted files'
+    'workspace-lint:Lint workspace or list of files:files:'
+    'workspace-schematic:Runs a workspace schematic from the tools/schematics directory:name:'
+    'migrate:Creates a migrations file or runs migrations from the migrations file'
+    'report:Reports useful version numbers to copy into the Nx issue template'
+    'list:Lists installed plugins, capabilities of installed plugins and other available plugins::plugin:'
+  )
 
   # Run completion.
   _describe -t nx-commands "Nx commands" commands && ret=0
