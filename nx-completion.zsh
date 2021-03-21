@@ -58,8 +58,8 @@ _list_projects() {
   # and transform to zsh array.
   projects=($(< $def | jq '.projects' | jq -r 'keys[]'))
 
-  # Autocomplete projects as an option$ (eg: nx run demo...) and append ':'.
-  _describe -t nx-projects "projects option" projects -qS ":" && ret=0 
+  # Autocomplete projects as an option$ (eg: nx run demo...).
+  _describe -t nx-projects "Nx projects" projects && ret=0 
   return ret
 }
 
@@ -171,13 +171,13 @@ _nx_command() {
         "--verbose[Adds more details to output logging.]" \
         "--watch[Run build when files change.]" \
         "--web-worker-ts-config[TypeScript configuration for Web Worker modules.]:config:" \
-        ":project" && ret=0
+        ":project:_list_projects" && ret=0
     ;;
     (deploy)
       _arguments $(_nx_arguments) \
         $opts_help \
         "(-c --configuration)"{-c=,--configuration=}"[A named builder configuration.]:configuration:" \
-        ":project" && ret=0
+        ":project:_list_projects" && ret=0
     ;;
     (d|doc)
       _arguments $(_nx_arguments) \
@@ -207,13 +207,13 @@ _nx_command() {
         "--spec[A comma delimited glob string that is provided to the Cypress runner to specify which spec files to run. i.e. '**examples/**,**actions.spec**.]:spec:" \
         "--ts-config[The path of the Cypress tsconfig configuration json file.]:filepath:" \
         "--watch[Recompile and run tests when files change.]" \
-        ":project" && ret=0
+        ":project:_list_projects" && ret=0
     ;;
     (run)
       _arguments $(_nx_arguments) \
         $opts_help \
         "(-c --configuration)"{-c=,--configuration=}"[A named builder configuration.]:configuration:" \
-        ": :_list_projects" && ret=0
+        ":project:_list_projects" && ret=0
 
       # @todo: Find a way to list executors (eg: nx run my-project:executor),
       # _arguments fn let us easily handle multiple args with space between,
@@ -226,7 +226,7 @@ _nx_command() {
         "--interactive[When false, disables interactive input prompts.]" \
         "(-d --dry-run)"{-d,--dry-run}"[When true, runs through and reports activity without writing out results.]" \
         "(-f --force)"{-f,--force}"[When true, forces overwriting of existing files.]" \
-        ": :_list_generators" && ret=0
+        ":generator:_list_generators" && ret=0
     ;;
   esac
 
