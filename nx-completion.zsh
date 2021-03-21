@@ -109,6 +109,15 @@ _nx_command() {
   opts_help=("--help[Shows a help message for this command in the console]")
   
   case "$words[1]" in
+    (add)
+      _arguments $(_nx_arguments) \
+        $opts_help \
+        "--defaults[When true, disables interactive input prompts for options with a default]" \
+        "--interactive[When false, disables interactive input prompts]" \
+        "--regristry[The NPM registry to use]:registry:" \
+        "--verbose[Display additional details about internal operations during execution]" \
+        ":package" && ret=0
+    ;;
     (run)
       _arguments $(_nx_arguments) \
         $opts_help \
