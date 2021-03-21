@@ -186,6 +186,29 @@ _nx_command() {
         "--version[Contains the version of Angular to use for the documentation. If not provided, the command uses your current Angular core version.]:version:" \
         ":keyword" && ret=0
     ;;
+    (e|e2e)
+      _arguments $(_nx_arguments) \
+        $opts_help \
+        "--base-url[Use this to pass directly the address of your distant server address with the port running your application.]:url:" \
+        "--ci-build-id[A unique identifier for a run to enable grouping or parallelization.]:id:" \
+        "(-c --configuration)"{-c=,--configuration=}"[A named builder configuration.]:configuration:" \
+        "--cypress-config[The path of the Cypress configuration json file.]:filepath:" \
+        "--dev-server-target[Dev server target to run tests against.]:target:" \
+        "--exit[Whether or not the Cypress Test Runner will stay open after running tests in a spec file.]" \
+        "--group[A named group for recorded runs in the Cypress dashboard.]:group:" \
+        "--headless[Whether or not to open the Cypress application to run the tests. If set to 'true', will run in headless mode.]" \
+        "--ignore-test-files[A String or Array of glob patterns used to ignore test files that would otherwise be shown in your list of tests. Cypress uses minimatch with the options: {dot: true, matchBase: true}.]:pattern:" \
+        "--key[The key cypress should use to run tests in parallel/record the run (CI only).]:key:" \
+        "--parallel[Whether or not Cypress should run its tests in parallel (CI only).]:key:" \
+        "--prod[When true, sets the build configuration to the production target, shorthand for \"--configuration=production\".]" \
+        "--record[Whether or not Cypress should record the results of the tests.]" \
+        "--reporter[The reporter used during cypress run.]:reporter:" \
+        "--reporter-options[The reporter options used. Supported options depend on the reporter.]:options:" \
+        "--spec[A comma delimited glob string that is provided to the Cypress runner to specify which spec files to run. i.e. '**examples/**,**actions.spec**.]:spec:" \
+        "--ts-config[The path of the Cypress tsconfig configuration json file.]:filepath:" \
+        "--watch[Recompile and run tests when files change.]" \
+        ":project" && ret=0
+    ;;
     (run)
       _arguments $(_nx_arguments) \
         $opts_help \
