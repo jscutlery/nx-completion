@@ -50,7 +50,6 @@ _workspace_def() {
   return ret
 }
 
-# @todo: Cache result.
 # List projects within workspace definition file,
 # uses jq dependency to parse and manipulate JSON file
 # instead of using a dirty grep or sed.
@@ -76,7 +75,6 @@ _list_executors() {
   return 0
 }
 
-# @todo: Cache result.
 _list_generators() {
   [[ $PREFIX = -* ]] && return 1
   integer ret=1
@@ -96,7 +94,6 @@ _list_generators() {
   return ret
 }
 
-# @todo: Cache result.
 _nx_commands() {
   [[ $PREFIX = -* ]] && return 1
   integer ret=1
