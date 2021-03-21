@@ -40,6 +40,7 @@ _workspace_def() {
 # uses jq dependency to parse and manipulate JSON file
 # instead of using a dirty grep or sed.
 _list_projects() {
+  # Prevent computation when typing: --option.
   [[ $PREFIX = -* ]] && return 1
   integer ret=1
   local def=$(_workspace_def)
@@ -51,16 +52,20 @@ _list_projects() {
   projects=($(< $def | jq '.projects' | jq -r 'keys[]'))
 
   # Autocomplete projects as an option$ (eg: nx run demo...) and append ':'.
-  _describe -t projects "projects option" projects -qS ":" && ret=0 
+  _describe -t nx-projects "projects option" projects -qS ":" && ret=0 
   return ret
 }
 
 _list_executors() {
+  # Prevent computation when typing: --option.
+  [[ $PREFIX = -* ]] && return 1
   return 0
   # @todo: grab project executors. 
 }
 
 _list_generators() {
+  # Prevent computation when typing: --option.
+  [[ $PREFIX = -* ]] && return 1
   return 0
   # @todo: grab project genrators, doable with parsing nx generate result
 }
@@ -94,18 +99,11 @@ _nx_command() {
       _arguments $(_nx_arguments) \
         $opts_help \
         "(-c --configuration)"{-c=,--configuration=}"[A named builder configuration]: configuration:" \
-        ": :_list_projects"
-      ret=0
+        ": :_list_projects" && ret=0
 
       # @todo: Find a way to list executors (eg: nx run my-project:executor),
-      # Function _arguments let us easily handle multiple args with space between,
+      # _arguments fn let us easily handle multiple args with space between,
       # but no clue how to deal with the following pattern my-project:executor.
-      # 
-      # case $state in
-      #   (*)
-      #     _list_executors && ret=0
-      #   ;;
-      # esac
     ;;
     (g|generate)
       _arguments $(_nx_arguments) \
@@ -114,12 +112,7 @@ _nx_command() {
         "--interactive[When false, disables interactive input prompts]" \
         "(-d --dry-run)"{-d,--dry-run}"[When true, runs through and reports activity without writing out results]" \
         "(-f --force)"{-f,--force}"[When true, forces overwriting of existing files]" \
-        ": :->generator"
-      case $state in
-        (generator)
-          _list_generators && ret=0
-        ;;
-      esac
+        ": :_list_generators" && ret=0
     ;;
   esac
 
@@ -136,7 +129,7 @@ _nx_completion() {
   
   opts_help=("--help[Shows a help message for this command in the console]")
   
-  _arguments $(_nx_arguments) -C \
+  _arguments $(_nx_arguments) \
     $opts_help \
     "--version[Show version number]" \
     ": :->root_command" \
