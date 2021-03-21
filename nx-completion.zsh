@@ -117,11 +117,11 @@ _nx_commands() {
     'dep-graph:Graph dependencies within workspace'
     'format\:check:Check for un-formatted files'
     'format\:write:Overwrite un-formatted files'
-    'workspace-lint:Lint workspace or list of files:files:'
-    'workspace-schematic:Runs a workspace schematic from the tools/schematics directory:name:'
+    'workspace-lint:[files...] Lint workspace or list of files'
+    'workspace-schematic:[name] Runs a workspace schematic from the tools/schematics directory'
     'migrate:Creates a migrations file or runs migrations from the migrations file'
     'report:Reports useful version numbers to copy into the Nx issue template'
-    'list:Lists installed plugins, capabilities of installed plugins and other available plugins::plugin:'
+    'list:[plugin] Lists installed plugins, capabilities of installed plugins and other available plugins'
   )
 
   # Run completion.
