@@ -173,6 +173,19 @@ _nx_command() {
         "--web-worker-ts-config[TypeScript configuration for Web Worker modules.]:config:" \
         ":project" && ret=0
     ;;
+    (deploy)
+      _arguments $(_nx_arguments) \
+        $opts_help \
+        "(-c --configuration)"{-c=,--configuration=}"[A named builder configuration.]:configuration:" \
+        ":project" && ret=0
+    ;;
+    (d|doc)
+      _arguments $(_nx_arguments) \
+        $opts_help \
+        "(-s --search)"{-s,--search}"[When true, searches all of angular.io. Otherwise, searches only API reference documentation.]" \
+        "--version[Contains the version of Angular to use for the documentation. If not provided, the command uses your current Angular core version.]:version:" \
+        ":keyword" && ret=0
+    ;;
     (run)
       _arguments $(_nx_arguments) \
         $opts_help \
