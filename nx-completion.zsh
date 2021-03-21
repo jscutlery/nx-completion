@@ -44,6 +44,7 @@ _workspace_def() {
   return ret
 }
 
+# @todo: Cache result.
 # List projects within workspace definition file,
 # uses jq dependency to parse and manipulate JSON file
 # instead of using a dirty grep or sed.
@@ -65,18 +66,21 @@ _list_projects() {
 
 _list_executors() {
   [[ $PREFIX = -* ]] && return 1
+  # @todo: Grab project executors. 
   return 0
-  # @todo: grab project executors. 
 }
 
+# @todo: Cache result.
 _list_generators() {
   [[ $PREFIX = -* ]] && return 1
   integer ret=1
   local -a output generators
   
   output=(${(f)"$(nx g 2>&1)"})
+
+  # @todo: handle no default project defined.
+
   # Split output to grab generators from default schematics.
-  # @todo: handle no default set.
   generators=(${(s/(default):/)output})
   generators=(${generators[2]})
   generators=(${(s/ /)generators})
@@ -86,6 +90,7 @@ _list_generators() {
   return ret
 }
 
+# @todo: Cache result.
 _nx_commands() {
   [[ $PREFIX = -* ]] && return 1
   integer ret=1
@@ -209,6 +214,21 @@ _nx_command() {
         "--watch[Recompile and run tests when files change.]" \
         ":project:_list_projects" && ret=0
     ;;
+    (xi18n|i18n-extract|extract-i18n)
+      _arguments $(_nx_arguments) \
+        $opts_help \
+        "--browser-target[Target to extract from.]:target:" \
+        "(-c --configuration)"{-c=,--configuration=}"[A named builder configuration.]:configuration:" \
+        "--format[Output format for the generated file.]:format:" \
+        "--i18n-format[Format of the localization file specified with --i18n-file.]:format:" \
+        "--i18n-locale[Locale to use for i18n.]:locale:" \
+        "--ivy[Use Ivy compiler to extract translations. The default for Ivy applications.]" \
+        "--out-file[Name of the file to output.]:outfile:" \
+        "--output-path[Path where output will be placed.]:path:" \
+        "--prod[When true, sets the build configuration to the production target, shorthand for \"--configuration=production\".]" \
+        "--progress[Log progress to the console.]" \
+        ":project:_list_projects" && ret=0
+    ;;
     (run)
       _arguments $(_nx_arguments) \
         $opts_help \
@@ -217,7 +237,7 @@ _nx_command() {
 
       # @todo: Find a way to list executors (eg: nx run my-project:executor),
       # _arguments fn let us easily handle multiple args with space between,
-      # but no clue how to deal with the following pattern my-project:executor.
+      # but no clue how to deal with the following pattern my-project:executor:configuration.
     ;;
     (g|generate)
       _arguments $(_nx_arguments) \
