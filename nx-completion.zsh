@@ -108,8 +108,9 @@ _nx_commands() {
   if ( [[ ${+_nx_subcommands} -eq 0 ]] || _cache_invalid nx_subcommands ) \
     && ! _retrieve_cache nx_subcommands
   then
+    local -a lines
     # Call CLI to get the command list.
-    _nx_subcommands=(${(f)"$(_call_program commands nx 2>&1)"})
+    lines=(${(f)"$(_call_program commands nx 2>&1)"})
     
     # Format output: remove line breaks etc.
     _nx_subcommands=(${${${(M)${lines[$((${lines[(i)*Commands:]} + 1)),-1]}:# *}## #}/ ##/:})
