@@ -15,6 +15,12 @@ _nx_arguments() {
   fi
 }
 
+# Describe the cache policy.
+_nx_caching_policy() {
+  oldp=( "$1"(Nmh+1) ) # 1 hour
+  (( $#oldp ))
+}
+
 # Check if at least one of w_defs are present in working dir.
 _check_workspace_def() {
   integer ret=1
@@ -94,38 +100,49 @@ _list_generators() {
 _nx_commands() {
   [[ $PREFIX = -* ]] && return 1
   integer ret=1
-  local -a lines commands
-  
-  # Call CLI to get the command list.
-  lines=(${(f)"$(_call_program commands nx 2>&1)"})
-  
-  # Format output: remove line breaks etc.
-  commands=(${${${(M)${lines[$((${lines[(i)*Commands:]} + 1)),-1]}:# *}## #}/ ##/:})
 
-  # Add Nx related commands.
-  # @todo: Could be directly grabbed from parsing nx --help command.
-  commands+=(
-    'affected:Run task for affected projects'
-    'run-many:Run task for multiple projects'
-    'affected\:apps:Print applications affected by changes'
-    'affected\:libs:Print libraries affected by changes'
-    'affected\:build:Build applications and publishable libraries affected by changes'
-    'affected\:test:Test projects affected by changes'
-    'affected\:e2e:Run e2e tests for the applications affected by changes'
-    'affected\:lint:Lint projects affected by changes'
-    'print-affected:Graph execution plan'
-    'dep-graph:Graph dependencies within workspace'
-    'format\:check:Check for un-formatted files'
-    'format\:write:Overwrite un-formatted files'
-    'workspace-lint:[files...] Lint workspace or list of files'
-    'workspace-schematic:[name] Runs a workspace schematic from the tools/schematics directory'
-    'migrate:Creates a migrations file or runs migrations from the migrations file'
-    'report:Reports useful version numbers to copy into the Nx issue template'
-    'list:[plugin] Lists installed plugins, capabilities of installed plugins and other available plugins'
-  )
+  local cache_policy
+
+  zstyle -s ":completion:${curcontext}:" cache-policy cache_policy
+  if [[ -z "$cache_policy" ]]; then
+    zstyle ":completion:${curcontext}:" cache-policy _nx_caching_policy
+  fi
+
+  if ( [[ ${+_nx_subcommands} -eq 0 ]] || _cache_invalid nx_subcommands ) \
+    && ! _retrieve_cache nx_subcommands
+  then
+    # Call CLI to get the command list.
+    _nx_subcommands=(${(f)"$(_call_program commands nx 2>&1)"})
+    
+    # Format output: remove line breaks etc.
+    _nx_subcommands=(${${${(M)${lines[$((${lines[(i)*Commands:]} + 1)),-1]}:# *}## #}/ ##/:})
+    
+    # Add Nx related commands.
+    # @todo: Could be directly grabbed from parsing nx --help command.
+    _nx_subcommands+=(
+      'affected:Run task for affected projects'
+      'run-many:Run task for multiple projects'
+      'affected\:apps:Print applications affected by changes'
+      'affected\:libs:Print libraries affected by changes'
+      'affected\:build:Build applications and publishable libraries affected by changes'
+      'affected\:test:Test projects affected by changes'
+      'affected\:e2e:Run e2e tests for the applications affected by changes'
+      'affected\:lint:Lint projects affected by changes'
+      'print-affected:Graph execution plan'
+      'dep-graph:Graph dependencies within workspace'
+      'format\:check:Check for un-formatted files'
+      'format\:write:Overwrite un-formatted files'
+      'workspace-lint:[files...] Lint workspace or list of files'
+      'workspace-schematic:[name] Runs a workspace schematic from the tools/schematics directory'
+      'migrate:Creates a migrations file or runs migrations from the migrations file'
+      'report:Reports useful version numbers to copy into the Nx issue template'
+      'list:[plugin] Lists installed plugins, capabilities of installed plugins and other available plugins'
+    )
+    (( $#_nx_subcommands > 2 )) && _store_cache nx_subcommands _nx_subcommands
+  fi
 
   # Run completion.
-  _describe -t nx-commands "Nx commands" commands && ret=0
+  _describe -t nx-commands "Nx commands" _nx_subcommands && ret=0
   return ret
 }
 
@@ -280,8 +297,7 @@ _nx_completion() {
   [[ $(_check_workspace_def) -eq 1 ]] && echo "error: workspace definition not found" && return 1
 
   integer ret=1
-  typeset -A opt_args
-  local -a _command_args opts_help
+  local curcontext="$curcontext" state _command_args opts_help
   
   opts_help=("--help[Shows a help message for this command in the console]")
   
@@ -296,6 +312,7 @@ _nx_completion() {
         _nx_commands && ret=0
       ;;
       (command)
+        curcontext=${curcontext%:*:*}:nx-$words[1]:
         _nx_command && ret=0
       ;;
   esac
