@@ -1,6 +1,6 @@
 # Nx completion plugin for Zsh
 
-![](https://user-images.githubusercontent.com/8522558/111843280-2691e400-8901-11eb-98a6-6fc8eb8a42a3.png)
+![demo](https://user-images.githubusercontent.com/8522558/111908149-67e8d780-8a58-11eb-9343-691f6d664163.gif)
 
 Not finished yet, won't finish today.
 
