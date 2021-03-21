@@ -146,19 +146,38 @@ _nx_commands() {
 
 _nx_command() {
   integer ret=1
-  local -a _command_args opts_help
+  local -a _command_args opts_help opts_affected
 
   opts_help=("--help[Shows a help message for this command in the console]")
+  opts_affected=(
+    "--base[Base of the current branch (usually master).]:sha:" \
+    "--head[Latest commit of the current branch (usually HEAD).]:sha:" \
+    "--files[Change the way Nx is calculating the affected command by providing directly changed files, list of files delimited by commas.]:files:" \
+    "--uncommitted[Uncommitted changes.]" \
+    "--untracked[Untracked changes.]" \
+    "--version[Show version number.]" \
+    "--target[Task to run for affected projects.]:target:" \
+    "--parallel[Parallelize the command.]" \
+    "--maxParallel[Max number of parallel processes.]:count:" \
+    "--all[All projects.]" \
+    "--exclude[Exclude certain projects from being processed.]:projects:" \
+    "--runner[This is the name of the tasks runner configured in nx.json.]:runner:" \
+    "--skip-nx-cache[Rerun the tasks even when the results are available in the cache.]" \
+    "--configuration[This is the configuration to use when performing tasks on projects.]:configuration:" \
+    "--only-failed[Isolate projects which previously failed.]" \
+    "--only-failed[Print additional error stack trace on failure.]"
+  )
   
   case "$words[1]" in
     (add)
       _arguments $(_nx_arguments) \
         $opts_help \
-        "--defaults[When true, disables interactive input prompts for options with a default.]" \
-        "--interactive[When false, disables interactive input prompts.]" \
-        "--regristry[The NPM registry to use.]:registry:" \
-        "--verbose[Display additional details about internal operations during execution.]" \
-        ":package" && ret=0
+        $opts_affected && ret=0
+    ;;
+    (affected|affected:apps|affected:build|affected:e2e|affected:libs|affected:lint|affected:test)
+      _arguments $(_nx_arguments) \
+        $opts_help \
+        $opts_affected && ret=0
     ;;
     (analytics)
       _arguments $(_nx_arguments) \
