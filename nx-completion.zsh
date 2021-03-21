@@ -3,8 +3,16 @@ w_defs=(
   "$PWD/worspace.json"
 )
 
+# @todo: Document.
 _nx_command() {
   echo "${words[2]}"
+}
+
+# @todo: Document.
+_nx_arguments() {
+  if zstyle -t ":completion:${curcontext}:" option-stacking; then
+    print -- -s
+  fi
 }
 
 # Check if at least one of w_defs are present in working dir.
@@ -40,7 +48,6 @@ _workspace_def() {
 # uses jq dependency to parse and manipulate JSON file
 # instead of using a dirty grep or sed.
 _list_projects() {
-  # Prevent computation when typing: --option.
   [[ $PREFIX = -* ]] && return 1
   integer ret=1
   local def=$(_workspace_def)
@@ -57,35 +64,42 @@ _list_projects() {
 }
 
 _list_executors() {
-  # Prevent computation when typing: --option.
   [[ $PREFIX = -* ]] && return 1
   return 0
   # @todo: grab project executors. 
 }
 
 _list_generators() {
-  # Prevent computation when typing: --option.
   [[ $PREFIX = -* ]] && return 1
-  return 0
-  # @todo: grab project genrators, doable with parsing nx generate result
-}
-
-_nx_arguments() {
-  if zstyle -t ":completion:${curcontext}:" option-stacking; then
-    print -- -s
-  fi
+  integer ret=1
+  local -a output generators
+  
+  output=(${(f)"$(nx g 2>&1)"})
+  # Split output to grab generators from default schematics.
+  # @todo: handle no default set.
+  generators=(${(s/(default):/)output})
+  generators=(${generators[2]})
+  generators=(${(s/ /)generators})
+ 
+  # Run completion.
+  _describe -t nx-generators "Nx generators" generators && ret=0
+  return ret
 }
 
 _nx_commands() {
-  local -a lines
-  # Run nx to get subcommand list output.
+  [[ $PREFIX = -* ]] && return 1
+  integer ret=1
+  local -a lines commands
+  
+  # Call nx to get the command list.
   lines=(${(f)"$(_call_program commands nx 2>&1)"})
   
-  # Format output for the completion.
-  _nx_subcommands=(${${${(M)${lines[$((${lines[(i)*Commands:]} + 1)),-1]}:# *}## #}/ ##/:})
+  # Format output: remove line breaks etc.
+  commands=(${${${(M)${lines[$((${lines[(i)*Commands:]} + 1)),-1]}:# *}## #}/ ##/:})
 
   # Run completion.
-  _describe -t nx-commands "Nx commands" _nx_subcommands
+  _describe -t nx-commands "Nx commands" commands && ret=0
+  return ret
 }
 
 _nx_command() {
