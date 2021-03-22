@@ -80,14 +80,11 @@ _list_project_executors() {
   projects=($(< $def | jq '.projects' | jq -r 'keys[]'))
 
   for p in $projects; do 
-    # @todo: executors could be grabbed from project definition. 
-    project_executors+=(
-      "$p\:serve"
-      "$p\:build"
-      "$p\:test"
-      "$p\:lint"
-      "$p\:e2e"
-    )
+    local -a executors
+    executors=($(< $def | jq ".projects[\"$p\"].architect" | jq -r 'keys[]'))
+    for e in $executors; do
+      project_executors+=("$p\:$e")
+    done
   done
 
   _describe -t project-executors 'Project executors' project_executors && ret=0
