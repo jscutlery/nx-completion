@@ -70,10 +70,28 @@ _list_projects() {
   return ret
 }
 
-_list_executors() {
+_list_project_executors() {
   [[ $PREFIX = -* ]] && return 1
-  # @todo: Grab project executors. 
-  return 0
+  integer ret=1
+  local -a def projects project_executors
+  
+  project_executors=()
+  def=$(_workspace_def)
+  projects=($(< $def | jq '.projects' | jq -r 'keys[]'))
+
+  for p in $projects; do 
+    # @todo: executors could be grabbed from project definition. 
+    project_executors+=(
+      "$p\:serve"
+      "$p\:build"
+      "$p\:test"
+      "$p\:lint"
+      "$p\:e2e"
+    )
+  done
+
+  _describe -t project-executors 'Project executors' project_executors && ret=0
+  return ret
 }
 
 _list_generators() {
@@ -84,6 +102,7 @@ _list_generators() {
   output=(${(f)"$(nx g 2>&1)"})
 
   # @todo: handle no default project defined.
+  # @todo: maybe there is better way to grab all workspace generators.
 
   # Split output to grab generators from default schematics.
   generators=(${(s/(default):/)output})
@@ -368,14 +387,10 @@ _nx_command() {
       _arguments $(_nx_arguments) \
         $opts_help \
         "(-c --configuration)"{-c=,--configuration=}"[A named builder configuration.]:configuration:" \
-        ":project:_list_projects" && ret=0
-      # @todo: Find a way to list executors (eg: nx run my-project:executor),
-      # _arguments fn let us easily handle multiple args with space between,
-      # but no clue how to deal with the following pattern my-project:executor:configuration.
-
-      # Idea: change the completion pattern for this particular command, found in doc: 
-      # zstyle ':completion:*:*:foo:*:*' tag-order '*' '*:-case'
-      # zstyle ':completion:*-case' matcher 'm:{a-z}={A-Z}'
+        ":project_and_executor:_list_project_executors" && ret=0
+        # Because run command use the following pattern my-project:executor:configuration,
+        # we are concatening these 3 arguments as a single one because no clue how to deal with this special separator,
+        # maybe one day someone will contribute with the solution, who knows.
     ;;
     (s|serve)
       _arguments $(_nx_arguments) \
