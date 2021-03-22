@@ -175,7 +175,7 @@ _nx_command() {
         $opts_help \
         $opts_affected && ret=0
     ;;
-    (affected|affected:apps|affected:build|affected:e2e|affected:libs|affected:lint|affected:test)
+    (affected|affected:apps|affected:build|affected:e2e|affected:libs|affected:lint|affected:test|format|format:write|format:check|print-affected)
       _arguments $(_nx_arguments) \
         $opts_help \
         $opts_affected && ret=0
@@ -303,6 +303,75 @@ _nx_command() {
         "--progress[Log progress to the console.]" \
         ":project:_list_projects" && ret=0
     ;;
+    (g|generate)
+      _arguments $(_nx_arguments) \
+        $opts_help \
+        "--version[Show version number.]" \
+        "--defaults[When true, disables interactive input prompts for options with a default.]" \
+        "--interactive[When false, disables interactive input prompts.]" \
+        "(-d --dry-run)"{-d,--dry-run}"[When true, runs through and reports activity without writing out results.]" \
+        "(-f --force)"{-f,--force}"[When true, forces overwriting of existing files.]" \
+        ":generator:_list_generators" && ret=0
+    ;;
+    (l|lint)
+      _arguments $(_nx_arguments) \
+        $opts_help \
+        "(-c --configuration)"{-c=,--configuration=}"[The linting configuration to use.]:configuration:" \
+        "--exclude[Files to exclude from linting.]:files:_files" \
+        "--files[Files to include from linting.]:files:_files" \
+        "--fix[Fixes linting errors (may overwrite linted files).]" \
+        "--force[Succeeds even if there was linting errors.]" \
+        "--format[Output format.]:format:(prose json stylish verbose pmd msbuild checkstyle vso fileslist)" \
+        "--silent[Show output text.]" \
+        "--ts-config[The name of the TypeScript configuration file.]:file:_files" \
+        "--tslint-config[The name of the TSLint configuration file.]:name:" \
+        "--type-check[Controls the type check for linting.]" && ret=0
+    ;;
+    (migrate)
+      _arguments $(_nx_arguments) \
+        $opts_help \
+        "--run-migrations[Run migrations.]:file:_files" \
+        ":package:" && ret=0
+    ;;
+    (n|new)
+      _arguments $(_nx_arguments) \
+        $opts_help \
+        "--app-name[Run migrations.]:name:" \
+        "(-c --collection)"{-c=,--collection=}"[A collection of schematics to use in generating the initial application.]:collection:" \
+        "--commit[Initial repository commit information.]" \
+        "--default-base[Default base branch for affected.]:branch:" \
+        "--defaults[When true, disables interactive input prompts for options with a default.]" \
+        "--directory[The directory name to create the workspace in.]:path:_path_files -/" \
+        "(-d --dry-run)"{-d,--dry-run}"[When true, runs through and reports activity without writing out results.]" \
+        "(-f --force)"{-f,--force}"[When true, forces overwriting of existing files.]" \
+        "--interactive[When false, disables interactive input prompts.]" \
+        "--linter[The tool to use for running lint checks.]:linter:" \
+        "--npm-scope[Npm scope for importing libs.]:scope:" \
+        "--nx-cloud[Connect the workspace to the free tier of the distributed cache provided by Nx Cloud.]" \
+        "--package-manager[The package manager used to install dependencies.]:pm:" \
+        "--preset[What to create in the new workspace.]:preset:" \
+        "(-g --skip-git)"{-g,--skip-git}"[Skip initializing a git repository.]" \
+        "--skip-install[Skip installing dependency packages.]" \
+        "--style[The file extension to be used for style files.]:style:(css scss sass)" \
+        "(-v --verbose)"{-v,--verbose}"[When true, adds more details to output logging.]" \
+        ":package:" && ret=0
+    ;;
+    (run-many)
+      _arguments $(_nx_arguments) \
+        $opts_help \
+        "--version[Show version number.]" \
+        "--target[Task to run for affected projects.]:target:" \
+        "--parallel[Parallelize the command.]" \
+        "--maxParallel[Max number of parallel processes.]:count:" \
+        "--projects[Projects to run (comma delimited).]:projects:_list_projects" \
+        "--all[Run the target on all projects in the workspace.]" \
+        "--runner[Override the tasks runner in `nx.json`.]:runner:" \
+        "--skip-nx-cache[Rerun the tasks even when the results are available in the.]" \
+        "--configuration[This is the configuration to use when performing tasks on projects.]:configuration:" \
+        "--with-deps[TInclude dependencies of specified projects when computing what to run.]" \
+        "--only-failed[Isolate projects which previously failed.]" \
+        "--verbose[Print additional error stack trace on failure.]" && ret=0
+    ;;
     (run)
       _arguments $(_nx_arguments) \
         $opts_help \
@@ -316,14 +385,39 @@ _nx_command() {
       # zstyle ':completion:*:*:foo:*:*' tag-order '*' '*:-case'
       # zstyle ':completion:*-case' matcher 'm:{a-z}={A-Z}'
     ;;
-    (g|generate)
+    (s|serve)
       _arguments $(_nx_arguments) \
         $opts_help \
-        "--defaults[When true, disables interactive input prompts for options with a default.]" \
-        "--interactive[When false, disables interactive input prompts.]" \
-        "(-d --dry-run)"{-d,--dry-run}"[When true, runs through and reports activity without writing out results.]" \
-        "(-f --force)"{-f,--force}"[When true, forces overwriting of existing files.]" \
-        ":generator:_list_generators" && ret=0
+        "--allowed-hosts[List of hosts that are allowed to access the dev server.]:hosts:_hosts" \
+        "--aot[Build using Ahead of Time compilation.]" \
+        "--base-href[Base url for the application being built.]:url:" \
+        "--browser-target[Target to serve.]:brower_target:" \
+        "--common-chunk[Use a separate bundle containing code used across multiple bundles.]" \
+        "(-c --configuration)"{-c=,--configuration=}"[A named builder configuration.]:configuration:" \
+        "--deploy-url[URL where files will be deployed.]:deploy_url:" \
+        "--disable-host-check[Don't verify connected clients are part of allowed hosts.]" \
+        "--hmr[Enable hot module replacement.]" \
+        "--hmr-warning[Show a warning when the --hmr option is enabled.]" \
+        "--host[Host to listen on.]:host:_hosts" \
+        "--live-reload[Whether to reload the page on change, using live-reload.]" \
+        "(-o --open)"{-o,--open}"[Opens the url in default browser.]" \
+        "--optimization[Enables optimization of the build output.]" \
+        "--poll[Enable and define the file watching poll time period in milliseconds.]" \
+        "--port[Port to listen on.]:port:" \
+        "--prod[When true, sets the build configuration to the production target, shorthand for \"--configuration=production\".]" \
+        "--progress[Log progress to the console while building.]" \
+        "--proxy-config[Proxy configuration file.]:file:_files" \
+        "--public-host[The URL that the browser client (or live-reload client, if enabled) should use to connect to the development server. Use for a complex dev server setup, such as one with reverse proxies.]:public_host:" \
+        "--serve-path[The pathname where the app will be served.]:pathname:" \
+        "--serve-path-default-warning[Show a warning when deploy-url/base-href use unsupported serve path values.]" \
+        "--source-map[Output sourcemaps.]" \
+        "--ssl[Serve using HTTPS.]" \
+        "--ssl-cert[SSL certificate to use for serving HTTPS.]:certificate:_files" \
+        "--ssl-key[SSL key to use for serving HTTPS.]:key:" \
+        "--vendor-chunk[Use a separate bundle containing only vendor libraries.]" \
+        "--verbose[Adds more details to output logging.]" \
+        "--watch[Rebuild on change.]" \
+        ":project:_list_projects" && ret=0
     ;;
   esac
 
