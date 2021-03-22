@@ -153,7 +153,7 @@ _nx_command() {
   opts_affected=(
     "--base[Base of the current branch (usually master).]:sha:" \
     "--head[Latest commit of the current branch (usually HEAD).]:sha:" \
-    "--files[Change the way Nx is calculating the affected command by providing directly changed files, list of files delimited by commas.]:files:" \
+    "--files[Change the way Nx is calculating the affected command by providing directly changed files, list of files delimited by commas.]:files:_files" \
     "--uncommitted[Uncommitted changes.]" \
     "--untracked[Untracked changes.]" \
     "--version[Show version number.]" \
@@ -161,12 +161,12 @@ _nx_command() {
     "--parallel[Parallelize the command.]" \
     "--maxParallel[Max number of parallel processes.]:count:" \
     "--all[All projects.]" \
-    "--exclude[Exclude certain projects from being processed.]:projects:" \
+    "--exclude[Exclude certain projects from being processed.]:projects:_list_projects" \
     "--runner[This is the name of the tasks runner configured in nx.json.]:runner:" \
     "--skip-nx-cache[Rerun the tasks even when the results are available in the cache.]" \
     "--configuration[This is the configuration to use when performing tasks on projects.]:configuration:" \
     "--only-failed[Isolate projects which previously failed.]" \
-    "--only-failed[Print additional error stack trace on failure.]"
+    "--verbose[Print additional error stack trace on failure.]"
   )
   
   case "$words[1]" in
@@ -198,42 +198,59 @@ _nx_command() {
         "(-c --configuration)"{-c=,--configuration=}"[A named builder configuration, setting this explicitly overrides the \"--prod\" flag.]:configuration:" \
         "--cross-origin[Define the crossorigin attribute setting of elements that provide CORS support.]" \
         "--delete-output-path[Delete the output path before building.]" \
-        "--deploy-url[URL where files will be deployed.]" \
         "--deploy-url[URL where files will be deployed.]:deploy_url:" \
         "--experimental-rollup-pass[Concatenate modules with Rollup before bundling them with Webpack.]" \
         "--extract-css[Extract CSS from global styles into '.css' files instead of '.js'.]" \
         "--extract-licenses[Extract all licenses in a separate file.]" \
         "--fork-type-checker[Run the TypeScript type checker in a forked process.]" \
-        "--i18n-file[Localization file to use for i18n.]:file:" \
+        "--i18n-file[Localization file to use for i18n.]:file:_files" \
         "--i18n-format[Format of the localization file specified with --i18n-file.]:format:" \
         "--i18n-locale[Locale to use for i18n.]:locale:" \
         "--i18n-missing-translation[How to handle missing translations for i18n.]:handler:" \
         "--index[Configures the generation of the application's HTML index.]:index:" \
-        "--lazy-modules[List of additional NgModule files that will be lazy loaded. Lazy router modules will be discovered automatically.]:modules:" \
+        "--lazy-modules[List of additional NgModule files that will be lazy loaded. Lazy router modules will be discovered automatically.]:files:_files" \
         "--localize" \
-        "--main[The full path for the main entry point to the app, relative to the current workspace.]:path:" \
+        "--main[The full path for the main entry point to the app, relative to the current workspace.]:path:_files" \
         "--named-chunks[Use file name for lazy loaded chunks.]:filename:" \
         "--ngsw-config-path[Path to ngsw-config.json.]:filepath:" \
         "--optimization[Enables optimization of the build output.]" \
         "--output-hashing[Define the output filename cache-busting hashing mode.]:mode:" \
-        "--output-path[The full path for the new output directory, relative to the current workspace.]:path:" \
+        "--output-path[The full path for the new output directory, relative to the current workspace.]:path:_path_files -/" \
         "--poll[Enable and define the file watching poll time period in milliseconds.]" \
-        "--polyfills[The full path for the polyfills file, relative to the current workspace.]:filepath:" \
+        "--polyfills[The full path for the polyfills file, relative to the current workspace.]:file:_files" \
         "--preserve-symlinks[Do not use the real path when resolving modules.]" \
         "--prod[When true, sets the build configuration to the production target, shorthand for \"--configuration=production\".]" \
         "--progress[Log progress to the console while building.]" \
-        "--resources-output-path[The path where style resources will be placed, relative to outputPath.]:path:" \
+        "--resources-output-path[The path where style resources will be placed, relative to outputPath.]:path:_path_files -/" \
         "--service-worker[Generates a service worker config for production builds.]" \
         "--show-circular-dependencies[Show circular dependency warnings on builds.]" \
         "--source-map[Output sourcemaps.]" \
         "--stats-json[Generates a 'stats.json' file which can be analyzed using tools such as 'webpack-bundle-analyzer'.]" \
         "--subresource-integrity[Enables the use of subresource integrity validation.]" \
-        "--ts-config[The full path for the TypeScript configuration file, relative to the current workspace.]:path:" \
+        "--ts-config[The full path for the TypeScript configuration file, relative to the current workspace.]:file:_files" \
         "--vendor-chunk[Use a separate bundle containing only vendor libraries.]" \
         "--verbose[Adds more details to output logging.]" \
         "--watch[Run build when files change.]" \
-        "--web-worker-ts-config[TypeScript configuration for Web Worker modules.]:config:" \
+        "--web-worker-ts-config[TypeScript configuration for Web Worker modules.]:file:_files" \
         ":project:_list_projects" && ret=0
+    ;;
+    (config)
+      _arguments $(_nx_arguments) \
+        $opts_help \
+        "(-g --global)"{-g,--global}"[When true, accesses the global configuration in the caller's home directory.]" \
+        ":json_path" \
+        "::value" && ret=0
+    ;;
+    (dep-graph)
+      _arguments $(_nx_arguments) \
+        $opts_help \
+        "--version[Show version number.]" \
+        "--file[Output file (e.g. --file=output.json or --file=dep-graph.html).]:file:_files" \
+        "--focus[Use to show the dependency graph for a particular project and every node that is either an ancestor or a descendant.]:project:_list_projects" \
+        "--exclude[List of projects delimited by commas to exclude from the dependency graph.]:projects:_list_projects:" \
+        "--groupByFolder[Group projects by folder in dependency graph.]" \
+        "--host[Bind the dep graph server to a specific ip address.]:host:_hosts" \
+        "--port[Bind the dep graph server to a specific port.]:port" && ret=0
     ;;
     (deploy)
       _arguments $(_nx_arguments) \
@@ -254,20 +271,20 @@ _nx_command() {
         "--base-url[Use this to pass directly the address of your distant server address with the port running your application.]:url:" \
         "--ci-build-id[A unique identifier for a run to enable grouping or parallelization.]:id:" \
         "(-c --configuration)"{-c=,--configuration=}"[A named builder configuration.]:configuration:" \
-        "--cypress-config[The path of the Cypress configuration json file.]:filepath:" \
+        "--cypress-config[The path of the Cypress configuration json file.]:file:_files" \
         "--dev-server-target[Dev server target to run tests against.]:target:" \
         "--exit[Whether or not the Cypress Test Runner will stay open after running tests in a spec file.]" \
         "--group[A named group for recorded runs in the Cypress dashboard.]:group:" \
         "--headless[Whether or not to open the Cypress application to run the tests. If set to 'true', will run in headless mode.]" \
         "--ignore-test-files[A String or Array of glob patterns used to ignore test files that would otherwise be shown in your list of tests. Cypress uses minimatch with the options: {dot: true, matchBase: true}.]:pattern:" \
-        "--key[The key cypress should use to run tests in parallel/record the run (CI only).]:key:" \
-        "--parallel[Whether or not Cypress should run its tests in parallel (CI only).]:key:" \
+        "--key[The key cypress should use to run tests in parallel/record the run (CI only).]:value:" \
+        "--parallel[Whether or not Cypress should run its tests in parallel (CI only).]:value:" \
         "--prod[When true, sets the build configuration to the production target, shorthand for \"--configuration=production\".]" \
         "--record[Whether or not Cypress should record the results of the tests.]" \
         "--reporter[The reporter used during cypress run.]:reporter:" \
         "--reporter-options[The reporter options used. Supported options depend on the reporter.]:options:" \
         "--spec[A comma delimited glob string that is provided to the Cypress runner to specify which spec files to run. i.e. '**examples/**,**actions.spec**.]:spec:" \
-        "--ts-config[The path of the Cypress tsconfig configuration json file.]:filepath:" \
+        "--ts-config[The path of the Cypress tsconfig configuration json file.]:file:_files" \
         "--watch[Recompile and run tests when files change.]" \
         ":project:_list_projects" && ret=0
     ;;
@@ -280,8 +297,8 @@ _nx_command() {
         "--i18n-format[Format of the localization file specified with --i18n-file.]:format:" \
         "--i18n-locale[Locale to use for i18n.]:locale:" \
         "--ivy[Use Ivy compiler to extract translations. The default for Ivy applications.]" \
-        "--out-file[Name of the file to output.]:outfile:" \
-        "--output-path[Path where output will be placed.]:path:" \
+        "--out-file[Name of the file to output.]:file:" \
+        "--output-path[Path where output will be placed.]:path:_path_files -/" \
         "--prod[When true, sets the build configuration to the production target, shorthand for \"--configuration=production\".]" \
         "--progress[Log progress to the console.]" \
         ":project:_list_projects" && ret=0
