@@ -419,6 +419,59 @@ _nx_command() {
         "--watch[Rebuild on change.]" \
         ":project:_list_projects" && ret=0
     ;;
+    (t|test)
+      _arguments $(_nx_arguments) \
+        $opts_help \
+        "(-b --bail)"{-o,--open}"[Exit the test suite immediately after `n` number of failing tests (https://jestjs.io/docs/en/cli#bail).]" \
+        "--ci[Whether to run Jest in continuous integration (CI) mode. This option is on by default in most popular CI environments. It will prevent snapshots from being written unless explicitly requested (https://jestjs.io/docs/en/cli#ci).]" \
+        "--clear-cache[Deletes the Jest cache directory and then exits without running tests. Will delete Jest's default cache directory. Note: clearing the cache will reduce performance.]" \
+        "(-b --bail)"{-o,--open}"[Exit the test suite immediately after `n` number of failing tests (https://jestjs.io/docs/en/cli#bail).]" \
+        "--common-chunk[Use a separate bundle containing code used across multiple bundles.]" \
+        "(-coverage --code-coverage)"{-coverage,--code-coverage}"[Indicates that test coverage information should be collected and reported in the output (https://jestjs.io/docs/en/cli#coverage).]" \
+        "(--color -colors)"{--color,-colors}"[Forces test results output color highlighting (even if stdout is not a TTY). Set to false if you would like to have no colors (https://jestjs.io/docs/en/cli#colors).]" \
+        "--config[The path to a Jest config file specifying how to find and execute tests. If no rootDir is set in the config, the directory containing the config file is assumed to be the rootDir for the project. This can also be a JSON-encoded value which Jest will use as configuration.]:file:_files" \
+        "(-c --configuration)"{-c=,--configuration=}"[A named builder configuration.]:configuration:" \
+        "--coverage-directory[The directory where Jest should output its coverage files.]:path:_path_files -/" \
+        "--coverage-reporters[A list of reporter names that Jest uses when writing coverage reports. Any istanbul reporter.]:reporter:" \
+        "--detect-open-handles[Attempt to collect and print open handles preventing Jest from exiting cleanly (https://jestjs.io/docs/en/cli.html#--detectopenhandles).]" \
+        "--find-related-tests[Find and run the tests that cover a comma separated list of source files that were passed in as arguments (https://jestjs.io/docs/en/cli#findrelatedtests-spaceseparatedlistofsourcefiles).]:files:_files" \
+        "--jest-config[The path of the Jest configuration. (https://jestjs.io/docs/en/configuration).]:file:_files" \
+        "--json[Prints the test results in JSON. This mode will send all other test output and user messages to stderr (https://jestjs.io/docs/en/cli#json).]" \
+        "(-w --max-workers)"{-w=,--max-workers=}"[Specifies the maximum number of workers the worker-pool will spawn for running tests. This defaults to the number of the cores available on your machine. Useful for CI. (its usually best not to override this default) (https://jestjs.io/docs/en/cli#maxworkers-num).]:count:" \
+        "(-o --only-changed)"{-o,--only-changed}"[Attempts to identify which tests to run based on which files have changed in the current repository. Only works if you're running tests in a git or hg repository at the moment (https://jestjs.io/docs/en/cli#onlychanged).]" \
+        "--output-file[Write test results to a file when the --json option is also specified (https://jestjs.io/docs/en/cli#outputfile-filename).]:file:_files" \
+        "--pass-with-no-tests[Will not fail if no tests are found (for example while using `--testPathPattern`.) (https://jestjs.io/docs/en/cli#passwithnotests).]" \
+        "--prod[When true, sets the build configuration to the production target, shorthand for \"--configuration=production\".]" \
+        "--reporters[Run tests with specified reporters. Reporter options are not available via CLI. Example with multiple reporters: jest --reporters=\"default\" --reporters=\"jest-junit\" (https://jestjs.io/docs/en/cli#reporters).]:reporters:" \
+        "(-i --run-in-band)"{-i,--run-in-band}"[Run all tests serially in the current process (rather than creating a worker pool of child processes that run tests). This is sometimes useful for debugging, but such use cases are pretty rare. Useful for CI. (https://jestjs.io/docs/en/cli#runinband).]" \
+        "--show-config[Print your Jest config and then exits (https://jestjs.io/docs/en/cli#--showconfig).]" \
+        "--silent[Prevent tests from printing messages through the console (https://jestjs.io/docs/en/cli#silent).]" \
+        "--test-file[The name of the file to test.]:filename:" \
+        "--test-location-in-results[Adds a location field to test results. Used to report location of a test in a reporter. { \"column\": 4, \"line\": 5 } (https://jestjs.io/docs/en/cli#testlocationinresults).]" \
+        "(-t --test-name-pattern)"{-t=,--test-name-pattern=}"[Run only tests with a name that matches the regex pattern (https://jestjs.io/docs/en/cli#testnamepattern-regex).]:pattern:" \
+        "--test-path-pattern[An array of regexp pattern strings that is matched against all tests paths before executing the test (https://jestjs.io/docs/en/cli#testpathpattern-regex).]:path_pattern:" \
+        "--test-results-processor[Node module that implements a custom results processor (https://jestjs.io/docs/en/configuration#testresultsprocessor-string).]:processor:" \
+        "(-u --update-snapshot)"{-u,--update-snapshot}"[Use this flag to re-record snapshots. Can be used together with a test suite pattern or with `--testNamePattern` to re-record snapshot for test matching the pattern (https://jestjs.io/docs/en/cli#updatesnapshot).]" \
+        "--use-stderr[Divert all output to stderr.]" \
+        "--verbose[Display individual test results with the test suite hierarchy. (https://jestjs.io/docs/en/cli#verbose).]" \
+        "--watch[Watch files for changes and rerun tests related to changed files. If you want to re-run all tests when a file has changed, use the `--watchAll` option (https://jestjs.io/docs/en/cli#watch).]" \
+        "--watch-all[Watch files for changes and rerun all tests when something changes. If you want to re-run only the tests that depend on the changed files, use the `--watch` option. (https://jestjs.io/docs/en/cli#watchall)]" \
+        ":project:_list_projects" && ret=0
+    ;;
+    (update)
+      _arguments $(_nx_arguments) \
+        $opts_help \
+        "--all[Whether to update all packages in package.json.]" \
+        "--allow-dirty[Whether to allow updating when the repository contains modified or untracked files.]" \
+        "(-C --create-commits)"{-C,--create-commits}"[reate source control commits for updates and migrations.]" \
+        "--force[If false, will error out if installed packages are incompatible with the update.]" \
+        "--from[Version from which to migrate from. Only available with a single package being updated, and only on migration only.]:version:" \
+        "--migrate-only[Only perform a migration, does not update the installed version.]" \
+        "--next[Use the prerelease version, including beta and RCs.]" \
+        "--packages[The names of package(s) to update.]:packages:" \
+        "--to[Version up to which to apply migrations. Only available with a single package being updated, and only on migrations only. Requires from to be specified. Default to the installed version detected.]:version:" \
+        "--verbose[Display additional details about internal operations during execution.]" && ret=0
+    ;;
   esac
 
   return ret
