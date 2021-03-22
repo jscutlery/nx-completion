@@ -6,13 +6,13 @@
 
 ## Install
 
-Install the dependency, [more download](https://stedolan.github.io/jq/download/):
+Install the dependency:
 
 ```sh
 apt install jq
 ```
 
-Note: `jq` is a lightweight command-line JSON processor.
+> Note: `jq` is a lightweight command-line JSON processor, more info [here](https://stedolan.github.io/jq/).
 
 Clone the repository into the custom plugins directory:
 
@@ -26,3 +26,6 @@ Then load it as a plugin in your `.zshrc`:
 plugins+=(nx-completion)
 ```
 
+## License
+
+This project is MIT licensed.
