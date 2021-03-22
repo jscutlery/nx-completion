@@ -70,12 +70,11 @@ _list_projects() {
   return ret
 }
 
-_list_project_executors() {
+_list_targets() {
   [[ $PREFIX = -* ]] && return 1
   integer ret=1
-  local -a def projects project_executors
+  local -a def projects targets=()
   
-  project_executors=()
   def=$(_workspace_def)
   projects=($(< $def | jq '.projects' | jq -r 'keys[]'))
 
@@ -83,11 +82,11 @@ _list_project_executors() {
     local -a executors
     executors=($(< $def | jq ".projects[\"$p\"].architect" | jq -r 'keys[]'))
     for e in $executors; do
-      project_executors+=("$p\:$e")
+      targets+=("$p\:$e")
     done
   done
 
-  _describe -t project-executors 'Project executors' project_executors && ret=0
+  _describe -t project-targets 'Project targets' targets && ret=0
   return ret
 }
 
@@ -384,7 +383,7 @@ _nx_command() {
       _arguments $(_nx_arguments) \
         $opts_help \
         "(-c --configuration)"{-c=,--configuration=}"[A named builder configuration.]:configuration:" \
-        ":project_and_executor:_list_project_executors" && ret=0
+        ":target:_list_targets" && ret=0
         # Because run command use the following pattern my-project:executor:configuration,
         # we are concatening these 3 arguments as a single one because no clue how to deal with this special separator,
         # maybe one day someone will contribute with the solution, who knows.
