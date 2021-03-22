@@ -1,8 +1,3 @@
-w_defs=(
-  "$PWD/angular.json"
-  "$PWD/worspace.json"
-)
-
 # @todo: Document.
 _nx_command() {
   echo "${words[2]}"
@@ -23,22 +18,28 @@ _nx_caching_policy() {
 
 # Check if at least one of w_defs are present in working dir.
 _check_workspace_def() {
-  integer ret=1
+  local w_defs=(
+    "$PWD/angular.json"
+    "$PWD/worspace.json"
+  )
   local a_def=${w_defs[1]}
   local w_def=${w_defs[2]}
 
-  if [[ ! -f $a_def && ! -f $w_def ]]; then 
-    echo 1
+  if [[ -f $a_def || -f $w_def ]]; then 
+    return 0
   else 
-    echo 0 && ret=0
+    return 1
   fi
-  return ret
 }
 
 # Get workspace defition path.
 # Assumes _check_workspace_def get called before.
 _workspace_def() {
   integer ret=1
+  local w_defs=(
+    "$PWD/angular.json"
+    "$PWD/worspace.json"
+  )
   local a_def=${w_defs[1]}
   local w_def=${w_defs[2]}
 
@@ -290,10 +291,13 @@ _nx_command() {
         $opts_help \
         "(-c --configuration)"{-c=,--configuration=}"[A named builder configuration.]:configuration:" \
         ":project:_list_projects" && ret=0
-
       # @todo: Find a way to list executors (eg: nx run my-project:executor),
       # _arguments fn let us easily handle multiple args with space between,
       # but no clue how to deal with the following pattern my-project:executor:configuration.
+
+      # Idea: change the completion pattern for this particular command, found in doc: 
+      # zstyle ':completion:*:*:foo:*:*' tag-order '*' '*:-case'
+      # zstyle ':completion:*-case' matcher 'm:{a-z}={A-Z}'
     ;;
     (g|generate)
       _arguments $(_nx_arguments) \
@@ -310,8 +314,17 @@ _nx_command() {
 }
 
 _nx_completion() {
-  # Display an error if no workspace definition found.
-  [[ $(_check_workspace_def) -eq 1 ]] && echo "error: workspace definition not found" && return 1
+  # In case no workspace found in current workind dir,
+  # suggest creating a new workspace.
+  _check_workspace_def
+  if [[ $? -eq 1 ]] ; then
+    local bold=$(tput bold)
+    local normal=$(tput sgr0)
+    _message -r "The current directory isn't part of an Nx workspace."
+    _message -r "Create a workspace using npm init: ${bold}npm init nx-workspace${normal}"
+    _message -r "Create a workspace using yarn:     ${bold}yarn create nx-workspace${normal}"
+    _message -r "Create a workspace using npx:      ${bold}npx create-nx-workspace${normal}" && return 0
+  fi
 
   integer ret=1
   local curcontext="$curcontext" state _command_args opts_help
@@ -325,13 +338,13 @@ _nx_completion() {
     "*:: :->command" && ret=0
 
   case $state in
-      (root_command)
-        _nx_commands && ret=0
-      ;;
-      (command)
-        curcontext=${curcontext%:*:*}:nx-$words[1]:
-        _nx_command && ret=0
-      ;;
+    (root_command)
+      _nx_commands && ret=0
+    ;;
+    (command)
+      curcontext=${curcontext%:*:*}:nx-$words[1]:
+      _nx_command && ret=0
+    ;;
   esac
 
   return ret
