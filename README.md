@@ -2,8 +2,6 @@
 
 ![demo](https://user-images.githubusercontent.com/8522558/111908149-67e8d780-8a58-11eb-9343-691f6d664163.gif)
 
-:warning: This plugin is at its early stages.
-
 ## Install
 
 Install the dependency:
