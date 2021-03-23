@@ -20,7 +20,7 @@ _nx_caching_policy() {
 _check_workspace_def() {
   local w_defs=(
     "$PWD/angular.json"
-    "$PWD/worspace.json"
+    "$PWD/workspace.json"
   )
   local a_def=${w_defs[1]}
   local w_def=${w_defs[2]}
@@ -38,7 +38,7 @@ _workspace_def() {
   integer ret=1
   local w_defs=(
     "$PWD/angular.json"
-    "$PWD/worspace.json"
+    "$PWD/workspace.json"
   )
   local a_def=${w_defs[1]}
   local w_def=${w_defs[2]}
