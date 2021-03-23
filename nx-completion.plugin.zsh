@@ -120,14 +120,14 @@ _nx_commands() {
   if [[ -z "$cache_policy" ]]; then
     zstyle ":completion:${curcontext}:" cache-policy _nx_caching_policy
   fi
-
+  
   if ( [[ ${+_nx_subcommands} -eq 0 ]] || _cache_invalid nx_subcommands ) \
     && ! _retrieve_cache nx_subcommands
   then
     local -a lines
     # Call CLI to get the command list.
     lines=(${(f)"$(_call_program commands nx 2>&1)"})
-    
+
     # Format output: remove line breaks etc.
     _nx_subcommands=(${${${(M)${lines[$((${lines[(i)*Commands:]} + 1)),-1]}:# *}## #}/ ##/:})
     
@@ -372,7 +372,7 @@ _nx_command() {
         "--maxParallel[Max number of parallel processes.]:count:" \
         "--projects[Projects to run (comma delimited).]:projects:_list_projects" \
         "--all[Run the target on all projects in the workspace.]" \
-        "--runner[Override the tasks runner in `nx.json`.]:runner:" \
+        "--runner[Override the tasks runner in nx.json.]:runner:" \
         "--skip-nx-cache[Rerun the tasks even when the results are available in the.]" \
         "--configuration[This is the configuration to use when performing tasks on projects.]:configuration:" \
         "--with-deps[TInclude dependencies of specified projects when computing what to run.]" \
@@ -425,10 +425,10 @@ _nx_command() {
     (t|test)
       _arguments $(_nx_arguments) \
         $opts_help \
-        "(-b --bail)"{-o,--open}"[Exit the test suite immediately after `n` number of failing tests (https://jestjs.io/docs/en/cli#bail).]" \
+        "(-b --bail)"{-o,--open}"[Exit the test suite immediately after n number of failing tests (https://jestjs.io/docs/en/cli#bail).]" \
         "--ci[Whether to run Jest in continuous integration (CI) mode. This option is on by default in most popular CI environments. It will prevent snapshots from being written unless explicitly requested (https://jestjs.io/docs/en/cli#ci).]" \
         "--clear-cache[Deletes the Jest cache directory and then exits without running tests. Will delete Jest's default cache directory. Note: clearing the cache will reduce performance.]" \
-        "(-b --bail)"{-o,--open}"[Exit the test suite immediately after `n` number of failing tests (https://jestjs.io/docs/en/cli#bail).]" \
+        "(-b --bail)"{-o,--open}"[Exit the test suite immediately after n number of failing tests (https://jestjs.io/docs/en/cli#bail).]" \
         "--common-chunk[Use a separate bundle containing code used across multiple bundles.]" \
         "(-coverage --code-coverage)"{-coverage,--code-coverage}"[Indicates that test coverage information should be collected and reported in the output (https://jestjs.io/docs/en/cli#coverage).]" \
         "(--color -colors)"{--color,-colors}"[Forces test results output color highlighting (even if stdout is not a TTY). Set to false if you would like to have no colors (https://jestjs.io/docs/en/cli#colors).]" \
@@ -443,7 +443,7 @@ _nx_command() {
         "(-w --max-workers)"{-w=,--max-workers=}"[Specifies the maximum number of workers the worker-pool will spawn for running tests. This defaults to the number of the cores available on your machine. Useful for CI. (its usually best not to override this default) (https://jestjs.io/docs/en/cli#maxworkers-num).]:count:" \
         "(-o --only-changed)"{-o,--only-changed}"[Attempts to identify which tests to run based on which files have changed in the current repository. Only works if you're running tests in a git or hg repository at the moment (https://jestjs.io/docs/en/cli#onlychanged).]" \
         "--output-file[Write test results to a file when the --json option is also specified (https://jestjs.io/docs/en/cli#outputfile-filename).]:file:_files" \
-        "--pass-with-no-tests[Will not fail if no tests are found (for example while using `--testPathPattern`.) (https://jestjs.io/docs/en/cli#passwithnotests).]" \
+        "--pass-with-no-tests[Will not fail if no tests are found (for example while using --testPathPattern.) (https://jestjs.io/docs/en/cli#passwithnotests).]" \
         "--prod[When true, sets the build configuration to the production target, shorthand for \"--configuration=production\".]" \
         "--reporters[Run tests with specified reporters. Reporter options are not available via CLI. Example with multiple reporters: jest --reporters=\"default\" --reporters=\"jest-junit\" (https://jestjs.io/docs/en/cli#reporters).]:reporters:" \
         "(-i --run-in-band)"{-i,--run-in-band}"[Run all tests serially in the current process (rather than creating a worker pool of child processes that run tests). This is sometimes useful for debugging, but such use cases are pretty rare. Useful for CI. (https://jestjs.io/docs/en/cli#runinband).]" \
@@ -454,11 +454,11 @@ _nx_command() {
         "(-t --test-name-pattern)"{-t=,--test-name-pattern=}"[Run only tests with a name that matches the regex pattern (https://jestjs.io/docs/en/cli#testnamepattern-regex).]:pattern:" \
         "--test-path-pattern[An array of regexp pattern strings that is matched against all tests paths before executing the test (https://jestjs.io/docs/en/cli#testpathpattern-regex).]:path_pattern:" \
         "--test-results-processor[Node module that implements a custom results processor (https://jestjs.io/docs/en/configuration#testresultsprocessor-string).]:processor:" \
-        "(-u --update-snapshot)"{-u,--update-snapshot}"[Use this flag to re-record snapshots. Can be used together with a test suite pattern or with `--testNamePattern` to re-record snapshot for test matching the pattern (https://jestjs.io/docs/en/cli#updatesnapshot).]" \
+        "(-u --update-snapshot)"{-u,--update-snapshot}"[Use this flag to re-record snapshots. Can be used together with a test suite pattern or with --testNamePattern to re-record snapshot for test matching the pattern (https://jestjs.io/docs/en/cli#updatesnapshot).]" \
         "--use-stderr[Divert all output to stderr.]" \
         "--verbose[Display individual test results with the test suite hierarchy. (https://jestjs.io/docs/en/cli#verbose).]" \
-        "--watch[Watch files for changes and rerun tests related to changed files. If you want to re-run all tests when a file has changed, use the `--watchAll` option (https://jestjs.io/docs/en/cli#watch).]" \
-        "--watch-all[Watch files for changes and rerun all tests when something changes. If you want to re-run only the tests that depend on the changed files, use the `--watch` option. (https://jestjs.io/docs/en/cli#watchall)]" \
+        "--watch[Watch files for changes and rerun tests related to changed files. If you want to re-run all tests when a file has changed, use the --watchAll option (https://jestjs.io/docs/en/cli#watch).]" \
+        "--watch-all[Watch files for changes and rerun all tests when something changes. If you want to re-run only the tests that depend on the changed files, use the --watch option. (https://jestjs.io/docs/en/cli#watchall)]" \
         ":project:_list_projects" && ret=0
     ;;
     (update)
