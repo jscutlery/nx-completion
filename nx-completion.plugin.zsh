@@ -165,27 +165,38 @@ _nx_command() {
   local -a _command_args opts_help opts_affected
 
   opts_help=("--help[Shows a help message for this command in the console]")
+  opts_affected(
+    "--base[Base of the current branch (usually master).]:sha:" \
+    "--head[Latest commit of the current branch (usually HEAD).]:sha:" \
+    "--files[Change the way Nx is calculating the affected command by providing directly changed files, list of files delimited by commas.]:files:_files" \
+    "--uncommitted[Uncommitted changes.]" \
+    "--untracked[Untracked changes.]" \
+    "--version[Show version number.]" \
+    "--target[Task to run for affected projects.]:target:" \
+    "--parallel[Parallelize the command.]" \
+    "--maxParallel[Max number of parallel processes.]:count:" \
+    "--all[All projects.]" \
+    "--exclude[Exclude certain projects from being processed.]:projects:_list_projects" \
+    "--runner[This is the name of the tasks runner configured in nx.json.]:runner:" \
+    "--configuration[This is the configuration to use when performing tasks on projects.]:configuration:" \
+    "--only-failed[Isolate projects which previously failed.]" \
+    "--verbose[Print additional error stack trace on failure.]" \
+    "--skip-nx-cache[Rerun the tasks even when the results are available in the cache.]"
+  )
   
   case "$words[1]" in
-    (add|affected|affected:apps|affected:build|affected:e2e|affected:libs|affected:lint|affected:test|format|format:write|format:check|print-affected)
+    (add|affected|affected:apps|affected:build|affected:libs|affected:lint|affected:test|format|format:write|format:check|print-affected)
       _arguments $(_nx_arguments) \
         $opts_help \
-        "--base[Base of the current branch (usually master).]:sha:" \
-        "--head[Latest commit of the current branch (usually HEAD).]:sha:" \
-        "--files[Change the way Nx is calculating the affected command by providing directly changed files, list of files delimited by commas.]:files:_files" \
-        "--uncommitted[Uncommitted changes.]" \
-        "--untracked[Untracked changes.]" \
-        "--version[Show version number.]" \
-        "--target[Task to run for affected projects.]:target:" \
-        "--parallel[Parallelize the command.]" \
-        "--maxParallel[Max number of parallel processes.]:count:" \
-        "--all[All projects.]" \
-        "--exclude[Exclude certain projects from being processed.]:projects:_list_projects" \
-        "--runner[This is the name of the tasks runner configured in nx.json.]:runner:" \
-        "--skip-nx-cache[Rerun the tasks even when the results are available in the cache.]" \
-        "--configuration[This is the configuration to use when performing tasks on projects.]:configuration:" \
-        "--only-failed[Isolate projects which previously failed.]" \
-        "--verbose[Print additional error stack trace on failure.]" && ret=0
+        $opts_affected \
+         && ret=0
+    ;;
+    (affected:e2e)
+      _arguments $(_nx_arguments) \
+        $opts_help \
+        $opts_affected \
+        "--headless[Run the Cypress tests in headless mode.]" \
+         && ret=0
     ;;
     (analytics)
       _arguments $(_nx_arguments) \
@@ -239,6 +250,7 @@ _nx_command() {
         "--verbose[Adds more details to output logging.]" \
         "--watch[Run build when files change.]" \
         "--web-worker-ts-config[TypeScript configuration for Web Worker modules.]:file:_files" \
+        "--skip-nx-cache[Rerun the tasks even when the results are available in the cache.]" \
         ":project:_list_projects" && ret=0
     ;;
     (config)
@@ -293,6 +305,7 @@ _nx_command() {
         "--spec[A comma delimited glob string that is provided to the Cypress runner to specify which spec files to run. i.e. '**examples/**,**actions.spec**.]:spec:" \
         "--ts-config[The path of the Cypress tsconfig configuration json file.]:file:_files" \
         "--watch[Recompile and run tests when files change.]" \
+        "--skip-nx-cache[Rerun the tasks even when the results are available in the cache.]" \
         ":project:_list_projects" && ret=0
     ;;
     (xi18n|i18n-extract|extract-i18n)
@@ -332,6 +345,7 @@ _nx_command() {
         "--silent[Show output text.]" \
         "--ts-config[The name of the TypeScript configuration file.]:file:_files" \
         "--tslint-config[The name of the TSLint configuration file.]:name:" \
+        "--skip-nx-cache[Rerun the tasks even when the results are available in the cache.]" \
         "--type-check[Controls the type check for linting.]" && ret=0
     ;;
     (migrate)
@@ -373,7 +387,7 @@ _nx_command() {
         "--projects[Projects to run (comma delimited).]:projects:_list_projects" \
         "--all[Run the target on all projects in the workspace.]" \
         "--runner[Override the tasks runner in nx.json.]:runner:" \
-        "--skip-nx-cache[Rerun the tasks even when the results are available in the.]" \
+        "--skip-nx-cache[Rerun the tasks even when the results are available in the cache.]" \
         "--configuration[This is the configuration to use when performing tasks on projects.]:configuration:" \
         "--with-deps[TInclude dependencies of specified projects when computing what to run.]" \
         "--only-failed[Isolate projects which previously failed.]" \
@@ -459,6 +473,7 @@ _nx_command() {
         "--verbose[Display individual test results with the test suite hierarchy. (https://jestjs.io/docs/en/cli#verbose).]" \
         "--watch[Watch files for changes and rerun tests related to changed files. If you want to re-run all tests when a file has changed, use the --watchAll option (https://jestjs.io/docs/en/cli#watch).]" \
         "--watch-all[Watch files for changes and rerun all tests when something changes. If you want to re-run only the tests that depend on the changed files, use the --watch option. (https://jestjs.io/docs/en/cli#watchall)]" \
+        "--skip-nx-cache[Rerun the tasks even when the results are available in the cache.]" \
         ":project:_list_projects" && ret=0
     ;;
     (update)
