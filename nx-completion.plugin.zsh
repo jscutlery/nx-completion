@@ -188,15 +188,13 @@ _nx_command() {
     (add|affected|affected:apps|affected:build|affected:libs|affected:lint|affected:test|format|format:write|format:check|print-affected)
       _arguments $(_nx_arguments) \
         $opts_help \
-        $opts_affected \
-         && ret=0
+        $opts_affected && ret=0
     ;;
     (affected:e2e)
       _arguments $(_nx_arguments) \
         $opts_help \
         $opts_affected \
-        "--headless[Run the Cypress tests in headless mode.]" \
-         && ret=0
+        "--headless[Run the Cypress tests in headless mode.]" && ret=0
     ;;
     (analytics)
       _arguments $(_nx_arguments) \
