@@ -165,22 +165,22 @@ _nx_command() {
   local -a _command_args opts_help opts_affected
 
   opts_help=("--help[Shows a help message for this command in the console]")
-  opts_affected(
-    "--base[Base of the current branch (usually master).]:sha:" \
-    "--head[Latest commit of the current branch (usually HEAD).]:sha:" \
-    "--files[Change the way Nx is calculating the affected command by providing directly changed files, list of files delimited by commas.]:files:_files" \
-    "--uncommitted[Uncommitted changes.]" \
-    "--untracked[Untracked changes.]" \
-    "--version[Show version number.]" \
-    "--target[Task to run for affected projects.]:target:" \
-    "--parallel[Parallelize the command.]" \
-    "--maxParallel[Max number of parallel processes.]:count:" \
-    "--all[All projects.]" \
-    "--exclude[Exclude certain projects from being processed.]:projects:_list_projects" \
-    "--runner[This is the name of the tasks runner configured in nx.json.]:runner:" \
-    "--configuration[This is the configuration to use when performing tasks on projects.]:configuration:" \
-    "--only-failed[Isolate projects which previously failed.]" \
-    "--verbose[Print additional error stack trace on failure.]" \
+  opts_affected=(
+    "--base[Base of the current branch (usually master).]:sha:"
+    "--head[Latest commit of the current branch (usually HEAD).]:sha:"
+    "--files[Change the way Nx is calculating the affected command by providing directly changed files, list of files delimited by commas.]:files:_files"
+    "--uncommitted[Uncommitted changes.]"
+    "--untracked[Untracked changes.]"
+    "--version[Show version number.]"
+    "--target[Task to run for affected projects.]:target:"
+    "--parallel[Parallelize the command.]"
+    "--maxParallel[Max number of parallel processes.]:count:"
+    "--all[All projects.]"
+    "--exclude[Exclude certain projects from being processed.]:projects:_list_projects"
+    "--runner[This is the name of the tasks runner configured in nx.json.]:runner:"
+    "--configuration[This is the configuration to use when performing tasks on projects.]:configuration:"
+    "--only-failed[Isolate projects which previously failed.]"
+    "--verbose[Print additional error stack trace on failure.]"
     "--skip-nx-cache[Rerun the tasks even when the results are available in the cache.]"
   )
   
