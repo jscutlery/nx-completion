@@ -51,36 +51,58 @@ _workspace_def() {
   return ret
 }
 
+_workspace_version() {
+  integer ret=1
+  local def=$(_workspace_def)
+  local version=($(< $def | jq '.version' | jq 'tonumber'))
+  echo $version && ret=0
+  return ret
+}
+
+_workspace_projects() {
+  integer ret=1
+  local def=$(_workspace_def)
+  local projects=($(< $def | jq '.projects' | jq -r 'keys[]'))
+  echo ${projects[@]} && ret=0
+  return ret
+}
+
 # List projects within workspace definition file,
 # uses jq dependency to parse and manipulate JSON file
 # instead of using a dirty grep or sed.
 _list_projects() {
   [[ $PREFIX = -* ]] && return 1
   integer ret=1
-  local def=$(_workspace_def)
-  local -a projects
-  
-  # Parse workspace def,
-  # create JSON array from projects name,
-  # and transform to zsh array.
-  projects=($(< $def | jq '.projects' | jq -r 'keys[]'))
+  local projects=($(_workspace_projects))
 
   # Autocomplete projects as an option$ (eg: nx run demo...).
-  _describe -t nx-projects "Nx projects" projects && ret=0 
+  _describe -t nx-projects "Nx projects" projects && ret=0
   return ret
 }
 
 _list_targets() {
   [[ $PREFIX = -* ]] && return 1
   integer ret=1
-  local -a def projects targets=()
-  
-  def=$(_workspace_def)
-  projects=($(< $def | jq '.projects' | jq -r 'keys[]'))
+  local def=$(_workspace_def)
+  local version=$(_workspace_version)
+  local projects=($(_workspace_projects))
+  local -a targets
 
-  for p in $projects; do 
+  for p in $projects; do
     local -a executors
-    executors=($(< $def | jq ".projects[\"$p\"].architect" | jq -r 'keys[]'))
+
+    if [[ $version == 1 ]]; then
+      executors=($(< $def | jq ".projects[\"$p\"].architect" | jq -r 'keys[]'))
+    else
+      local projectType=$(< $def | jq ".projects[\"$p\"]" | jq -r 'type')
+      if [[ $projectType == "object" ]]; then
+        executors=($(< $def | jq ".projects[\"$p\"].targets" | jq -r 'keys[]'))
+      else
+        local standaloneProjectDef=$(< $def | jq -r ".projects[\"$p\"]")/project.json
+        executors=($(< $standaloneProjectDef  | jq ".targets" | jq -r 'keys[]'))
+      fi
+    fi
+
     for e in $executors; do
       targets+=("$p\:$e")
     done
