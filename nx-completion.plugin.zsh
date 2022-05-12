@@ -150,28 +150,28 @@ _nx_commands() {
   then  
     # Add Nx related commands.
     _nx_subcommands=(
-      'generate:Generate or update source code (e.g., nx generate @nrwl/js\:lib mylib) [aliases\: g]'
-      'run:[project][\:target][\:configuration] Run a target for a project (e.g., nx run myapp\:serve\:production)'
-      'run-many:Run task for multiple listed projects'
-      'affected:Run task for affected projects'
-      'affected\:apps:Print applications affected by changes'
-      'affected\:libs:Print libraries affected by changes'
-      'affected\:graph:Graph dependencies affected by changes [aliases: affected\:dep-graph]'
-      'affected\:build:Build applications and publishable libraries affected by changes'
-      'affected\:test:Test projects affected by changes'
-      'affected\:e2e:Run e2e tests for the applications affected by changes'
-      'affected\:lint:Lint projects affected by changes'
-      'print-affected:Graph execution plan'
-      'graph:Graph dependencies within workspace [aliases\: dep-graph]'
-      'format\:check:Check for un-formatted files'
-      'format\:write:Overwrite un-formatted files [aliases\: format]'
-      'workspace-lint:[files...] Lint workspace or list of files'
-      'workspace-generator:[name] Runs a workspace generator from the tools/generators directory [aliases\: workspace-schematic]'
-      'migrate:Creates a migrations file or runs migrations from the migrations file'
-      'report:Reports useful version numbers to copy into the Nx issue template'
-      'list:[plugin]Lists installed plugins, capabilities of installed plugins and other available plugins'
-      'reset:Clears all the cached Nx artifacts and metadata about the workspace and shuts down the Nx Daemon'
-      'connect-to-nx-cloud:Makes sure the workspace is connected to Nx Cloud'
+      'generate:Generate or update source code. (e.g., nx generate @nrwl/js\:lib mylib) [aliases\: g]'
+      'run:[project][\:target][\:configuration] Run a target for a project. (e.g., nx run myapp\:serve\:production)'
+      'run-many:Run task for multiple listed projects.'
+      'affected:Run task for affected projects.'
+      'affected\:apps:Print applications affected by changes.'
+      'affected\:libs:Print libraries affected by changes.'
+      'affected\:graph:Graph dependencies affected by changes. [aliases: affected\:dep-graph]'
+      'affected\:build:Build applications and publishable libraries affected by changes.'
+      'affected\:test:Test projects affected by changes.'
+      'affected\:e2e:Run e2e tests for the applications affected by changes.'
+      'affected\:lint:Lint projects affected by changes.'
+      'print-affected:Graph execution plan.'
+      'graph:Graph dependencies within workspace. [aliases\: dep-graph]'
+      'format\:check:Check for un-formatted files.'
+      'format\:write:Overwrite un-formatted files. [aliases\: format]'
+      'workspace-lint:[files...] Lint workspace or list of files.'
+      'workspace-generator:[name] Runs a workspace generator from the tools/generators directory. [aliases\: workspace-schematic]'
+      'migrate:Creates a migrations file or runs migrations from the migrations file.'
+      'report:Reports useful version numbers to copy into the Nx issue template.'
+      'list:[plugin]Lists installed plugins, capabilities of installed plugins and other available plugins.'
+      'reset:Clears all the cached Nx artifacts and metadata about the workspace and shuts down the Nx Daemon.'
+      'connect-to-nx-cloud:Makes sure the workspace is connected to Nx Cloud.'
     )
     (( $#_nx_subcommands > 2 )) && _store_cache nx_subcommands _nx_subcommands
   fi
@@ -200,28 +200,16 @@ _nx_command() {
     "--exclude[Exclude certain projects from being processed.]:projects:_list_projects"
     "--runner[This is the name of the tasks runner configured in nx.json.]:runner:"
     "--configuration[This is the configuration to use when performing tasks on projects.]:configuration:"
-    "--onlyFailed[Isolate projects which previously failed.]"
+    "--onlyFailed[(Deprecated) Isolate projects which previously failed.]"
     "--verbose[Print additional error stack trace on failure.]"
     "--skipNxCache[Rerun the tasks even when the results are available in the cache.]"
   )
   
   case "$words[1]" in
-    (add|affected|affected:apps|affected:build|affected:libs|affected:lint|affected:test|format|format:write|format:check|print-affected)
+    (affected|affected:apps|affected:build|affected:libs|affected:e2e|affected:lint|affected:test|affected:graph|format|format:write|format:check|print-affected)
       _arguments $(_nx_arguments) \
         $opts_help \
         $opts_affected && ret=0
-    ;;
-    (affected:e2e)
-      _arguments $(_nx_arguments) \
-        $opts_help \
-        $opts_affected \
-        "--headless[Run the Cypress tests in headless mode.]" && ret=0
-    ;;
-    (analytics)
-      _arguments $(_nx_arguments) \
-        $opts_help \
-        "1:setting_or_project" \
-        "2:project_setting" && ret=0
     ;;
     (b|build)
       _arguments $(_nx_arguments) \
@@ -272,13 +260,6 @@ _nx_command() {
         "--skipNxCache[Rerun the tasks even when the results are available in the cache.]" \
         ":project:_list_projects" && ret=0
     ;;
-    (config)
-      _arguments $(_nx_arguments) \
-        $opts_help \
-        "(-g --global)"{-g,--global}"[When true, accesses the global configuration in the caller's home directory.]" \
-        ":json_path" \
-        "::value" && ret=0
-    ;;
     (dep-graph)
       _arguments $(_nx_arguments) \
         $opts_help \
@@ -289,19 +270,6 @@ _nx_command() {
         "--groupByFolder[Group projects by folder in dependency graph.]" \
         "--host[Bind the dep graph server to a specific ip address.]:host:_hosts" \
         "--port[Bind the dep graph server to a specific port.]:port" && ret=0
-    ;;
-    (deploy)
-      _arguments $(_nx_arguments) \
-        $opts_help \
-        "(-c --configuration)"{-c=,--configuration=}"[A named builder configuration.]:configuration:" \
-        ":project:_list_projects" && ret=0
-    ;;
-    (d|doc)
-      _arguments $(_nx_arguments) \
-        $opts_help \
-        "(-s --search)"{-s,--search}"[When true, searches all of angular.io. Otherwise, searches only API reference documentation.]" \
-        "--version[Contains the version of Angular to use for the documentation. If not provided, the command uses your current Angular core version.]:version:" \
-        ":keyword" && ret=0
     ;;
     (e|e2e)
       _arguments $(_nx_arguments) \
@@ -325,21 +293,6 @@ _nx_command() {
         "--tsConfig[The path of the Cypress tsconfig configuration json file.]:file:_files" \
         "--watch[Recompile and run tests when files change.]" \
         "--skipNxCache[Rerun the tasks even when the results are available in the cache.]" \
-        ":project:_list_projects" && ret=0
-    ;;
-    (xi18n|i18n-extract|extract-i18n)
-      _arguments $(_nx_arguments) \
-        $opts_help \
-        "--browserTarget[Target to extract from.]:target:" \
-        "(-c --configuration)"{-c=,--configuration=}"[A named builder configuration.]:configuration:" \
-        "--format[Output format for the generated file.]:format:" \
-        "--i18nFormat[Format of the localization file specified with --i18n-file.]:format:" \
-        "--i18nLocale[Locale to use for i18n.]:locale:" \
-        "--ivy[Use Ivy compiler to extract translations. The default for Ivy applications.]" \
-        "--outFile[Name of the file to output.]:file:" \
-        "--outputPath[Path where output will be placed.]:path:_path_files -/" \
-        "--prod[When true, sets the build configuration to the production target, shorthand for \"--configuration=production\".]" \
-        "--progress[Log progress to the console.]" \
         ":project:_list_projects" && ret=0
     ;;
     (g|generate)
@@ -495,20 +448,6 @@ _nx_command() {
         "--skipNxCache[Rerun the tasks even when the results are available in the cache.]" \
         ":project:_list_projects" && ret=0
     ;;
-    (update)
-      _arguments $(_nx_arguments) \
-        $opts_help \
-        "--all[Whether to update all packages in package.json.]" \
-        "--allowDirty[Whether to allow updating when the repository contains modified or untracked files.]" \
-        "(-C --create-commits)"{-C,--create-commits}"[reate source control commits for updates and migrations.]" \
-        "--force[If false, will error out if installed packages are incompatible with the update.]" \
-        "--from[Version from which to migrate from. Only available with a single package being updated, and only on migration only.]:version:" \
-        "--migrateOnly[Only perform a migration, does not update the installed version.]" \
-        "--next[Use the prerelease version, including beta and RCs.]" \
-        "--packages[The names of package(s) to update.]:packages:" \
-        "--to[Version up to which to apply migrations. Only available with a single package being updated, and only on migrations only. Requires from to be specified. Default to the installed version detected.]:version:" \
-        "--verbose[Display additional details about internal operations during execution.]" && ret=0
-    ;;
   esac
 
   return ret
@@ -522,9 +461,13 @@ _nx_completion() {
     local bold=$(tput bold)
     local normal=$(tput sgr0)
     _message -r "The current directory isn't part of an Nx workspace."
-    _message -r "Create a workspace using npm init: ${bold}npm init nx-workspace${normal}"
-    _message -r "Create a workspace using yarn:     ${bold}yarn create nx-workspace${normal}"
-    _message -r "Create a workspace using npx:      ${bold}npx create-nx-workspace${normal}" && return 0
+    _message -r ""
+    _message -r "Create a workspace using npm init:"
+    _message -r "${bold}npm init nx-workspace${normal}"
+    _message -r "Create a workspace using yarn:"
+    _message -r "${bold}yarn create nx-workspace${normal}"
+    _message -r "Create a workspace using npx:"
+    _message -r "${bold}npx create-nx-workspace${normal}" && return 0
   fi
 
   integer ret=1
