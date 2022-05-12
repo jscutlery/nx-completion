@@ -18,18 +18,20 @@ _nx_caching_policy() {
 
 # Check if at least one of w_defs are present in working dir.
 _check_workspace_def() {
-  local w_defs=(
+  integer ret=1
+  local files=(
     "$PWD/angular.json"
     "$PWD/workspace.json"
+    "$PWD/nx.json"
   )
-  local a_def=${w_defs[1]}
-  local w_def=${w_defs[2]}
-
-  if [[ -f $a_def || -f $w_def ]]; then 
-    return 0
-  else 
-    return 1
-  fi
+  
+  for file in $files; do
+    if [[ -f $file ]]; then
+       ret=0
+    fi
+  done
+  
+  return ret
 }
 
 # Get workspace defition path.
