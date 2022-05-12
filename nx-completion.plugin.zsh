@@ -147,34 +147,31 @@ _nx_commands() {
   
   if ( [[ ${+_nx_subcommands} -eq 0 ]] || _cache_invalid nx_subcommands ) \
     && ! _retrieve_cache nx_subcommands
-  then
-    local -a lines
-    # Call CLI to get the command list.
-    lines=(${(f)"$(_call_program commands nx 2>&1)"})
-
-    # Format output: remove line breaks etc.
-    _nx_subcommands=(${${${(M)${lines[$((${lines[(i)*Commands:]} + 1)),-1]}:# *}## #}/ ##/:})
-    
+  then  
     # Add Nx related commands.
-    # @todo: Could be directly grabbed from parsing nx --help command.
-    _nx_subcommands+=(
+    _nx_subcommands=(
+      'generate:Generate or update source code (e.g., nx generate @nrwl/js\:lib mylib) [aliases\: g]'
+      'run:[project][\:target][\:configuration] Run a target for a project (e.g., nx run myapp\:serve\:production)'
+      'run-many:Run task for multiple listed projects'
       'affected:Run task for affected projects'
-      'run-many:Run task for multiple projects'
       'affected\:apps:Print applications affected by changes'
       'affected\:libs:Print libraries affected by changes'
+      'affected\:graph:Graph dependencies affected by changes [aliases: affected\:dep-graph]'
       'affected\:build:Build applications and publishable libraries affected by changes'
       'affected\:test:Test projects affected by changes'
       'affected\:e2e:Run e2e tests for the applications affected by changes'
       'affected\:lint:Lint projects affected by changes'
       'print-affected:Graph execution plan'
-      'dep-graph:Graph dependencies within workspace'
+      'graph:Graph dependencies within workspace [aliases\: dep-graph]'
       'format\:check:Check for un-formatted files'
-      'format\:write:Overwrite un-formatted files'
+      'format\:write:Overwrite un-formatted files [aliases\: format]'
       'workspace-lint:[files...] Lint workspace or list of files'
-      'workspace-schematic:[name] Runs a workspace schematic from the tools/schematics directory'
+      'workspace-generator:[name] Runs a workspace generator from the tools/generators directory [aliases\: workspace-schematic]'
       'migrate:Creates a migrations file or runs migrations from the migrations file'
       'report:Reports useful version numbers to copy into the Nx issue template'
-      'list:[plugin] Lists installed plugins, capabilities of installed plugins and other available plugins'
+      'list:[plugin]Lists installed plugins, capabilities of installed plugins and other available plugins'
+      'reset:Clears all the cached Nx artifacts and metadata about the workspace and shuts down the Nx Daemon'
+      'connect-to-nx-cloud:Makes sure the workspace is connected to Nx Cloud'
     )
     (( $#_nx_subcommands > 2 )) && _store_cache nx_subcommands _nx_subcommands
   fi
