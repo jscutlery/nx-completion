@@ -10,6 +10,12 @@ Install the dependency:
 apt install jq
 ```
 
+On MacOS you can install with: 
+
+```shell
+brew install jq
+```
+
 > Note: `jq` is a lightweight command-line JSON processor, more info [here](https://stedolan.github.io/jq/).
 
 ### As an [Oh My ZSH!](https://github.com/robbyrussell/oh-my-zsh) custom plugin
