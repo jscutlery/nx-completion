@@ -117,18 +117,20 @@ _list_targets() {
 _list_generators() {
   [[ $PREFIX = -* ]] && return 1
   integer ret=1
-  local -a output generators
   
-  output=(${(f)"$(nx g 2>&1)"})
+  local -a output generators
+  local -a plugins
+  
+  plugins=(${(f)"$(nx list | awk '/Installed/,/Also available:/' | grep generators | awk -F ' ' '{print $1}')"})
 
-  # @todo: handle no default project defined.
-  # @todo: maybe there is better way to grab all workspace generators.
-
-  # Split output to grab generators from default schematics.
-  generators=(${(s/(default):/)output})
-  generators=(${generators[2]})
-  generators=(${(s/ /)generators})
- 
+  for p in $plugins; do
+    local -a pluginGenerators
+    pluginGenerators=(${(f)"$(nx list $p | awk '/GENERATORS/,/EXECUTORS/' | grep ' : ' | awk -F " : " '{ print $1}' | awk '{$1=$1};1')"})
+    for g in $pluginGenerators; do
+      generators+=("$p\:$g")
+    done
+  done
+  
   # Run completion.
   _describe -t nx-generators "Nx generators" generators && ret=0
   return ret
