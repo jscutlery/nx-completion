@@ -165,6 +165,9 @@ _nx_commands() {
       'affected\:lint:Lint projects affected by changes.'
       'print-affected:Graph execution plan.'
       'graph:Graph dependencies within workspace. [aliases\: dep-graph]'
+      'repair:Repair any configuration that is no longer supported by Nx.'
+      'init:Adds nx.json file and installs nx if not installed already.'
+      'exec:Executes any command as if it was a target on the project.'
       'format\:check:Check for un-formatted files.'
       'format\:write:Overwrite un-formatted files. [aliases\: format]'
       'workspace-lint:[files...] Lint workspace or list of files.'
@@ -196,15 +199,16 @@ _nx_command() {
     "--untracked[Untracked changes.]"
     "--version[Show version number.]"
     "--target[Task to run for affected projects.]:target:"
+    "--output-style[Defines how Nx emits outputs tasks logs.]:output:"
+    "--nx-bail[Stop command execution after the first failed task.]"
+    "--nx-ignore-cycles[Ignore cycles in the task graph.]"
     "--parallel[Parallelize the command.]"
-    "--maxParallel[Max number of parallel processes.]:count:"
     "--all[All projects.]"
     "--exclude[Exclude certain projects from being processed.]:projects:_list_projects"
     "--runner[This is the name of the tasks runner configured in nx.json.]:runner:"
     "--configuration[This is the configuration to use when performing tasks on projects.]:configuration:"
-    "--onlyFailed[(Deprecated) Isolate projects which previously failed.]"
     "--verbose[Print additional error stack trace on failure.]"
-    "--skipNxCache[Rerun the tasks even when the results are available in the cache.]"
+    "--skip-nx-cache[Rerun the tasks even when the results are available in the cache.]"
   )
   
   case "$words[1]" in
