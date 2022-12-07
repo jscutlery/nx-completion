@@ -1,6 +1,16 @@
 # Nx completion plugin for Zsh
 
+> This plugin bring Zsh autocompletion to Nx.
+
 ![demo](https://user-images.githubusercontent.com/8522558/111908149-67e8d780-8a58-11eb-9343-691f6d664163.gif)
+
+## Features
+
+- Nx commands autocompletion
+- Projects autocompletion
+- Targets autocompletion
+- Generators autocompletion
+- Support different workspace versions
 
 ## Install
 
