@@ -6,10 +6,8 @@
 
 ## Features
 
-- Nx commands autocompletion
-- Projects autocompletion
-- Targets autocompletion
-- Generators autocompletion
+- Commands and arguments autocompletion
+- Projects, targets and executors autocompletion
 - Support different workspace versions
 
 ## Install
