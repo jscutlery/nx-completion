@@ -7,7 +7,7 @@
 ## Features
 
 - Commands and arguments autocompletion
-- Projects, targets and executors autocompletion
+- Projects, targets, and generators autocompletion
 - Support different workspace versions
 
 ## Install
