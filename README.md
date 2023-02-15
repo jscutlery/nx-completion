@@ -12,7 +12,9 @@
 
 ## Install
 
-Install the dependency:
+### Prerequisit
+
+Install `jq` dependency:
 
 ```shell
 apt install jq
@@ -24,7 +26,7 @@ On MacOS you can install with:
 brew install jq
 ```
 
-> Note: `jq` is a lightweight command-line JSON processor, more info [here](https://stedolan.github.io/jq/).
+> **Note**: `jq` is a lightweight command-line JSON processor used to manipulate the workspace graph, more info [here](https://stedolan.github.io/jq/).
 
 ### As an [Oh My ZSH!](https://github.com/robbyrussell/oh-my-zsh) custom plugin
 
