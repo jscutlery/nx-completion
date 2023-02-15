@@ -27,45 +27,38 @@ _check_workspace_def() {
   
   for file in $files; do
     if [[ -f $file ]]; then
-       ret=0
+      ret=0
     fi
   done
+
+  # For performance reasons, we cache the workspace definition file
+  # in a tmp file. This file is generated only once per workspace.
+  local cwd_id=$(echo $PWD | md5sum | awk '{print $1}')
+  tmp_cached_def="/tmp/nx-completion-$cwd_id.json"
+  
+  if [[ ! -f $tmp_cached_def ]]; then
+    nx graph --file="$tmp_cached_def" > /dev/null && ret=0
+  fi
   
   return ret
 }
 
-# Get workspace defition path.
+# Read workspace definition from generated tmp file. 
 # Assumes _check_workspace_def get called before.
 _workspace_def() {
   integer ret=1
-  local w_defs=(
-    "$PWD/angular.json"
-    "$PWD/workspace.json"
-  )
-  local a_def=${w_defs[1]}
-  local w_def=${w_defs[2]}
-
-  if [[ -f $a_def ]]; then
-    echo $a_def && ret=0
-  else
-    echo $w_def && ret=0
+  if [[ -f $tmp_cached_def ]]; then
+    echo $tmp_cached_def && ret=0
   fi
   return ret
 }
 
-_workspace_version() {
-  integer ret=1
-  local def=$(_workspace_def)
-  local version=($(< $def | jq '.version' | jq 'tonumber'))
-  echo $version && ret=0
-  return ret
-}
-
+# Collect workspace projects
 _workspace_projects() {
   integer ret=1
   local def=$(_workspace_def)
-  local projects=($(< $def | jq '.projects' | jq -r 'keys[]'))
-  echo ${projects[@]} && ret=0
+  local -a projects=($(<$def | jq -r '.graph.nodes | keys[]'))
+  echo $projects && ret=0
   return ret
 }
 
@@ -75,8 +68,8 @@ _workspace_projects() {
 _list_projects() {
   [[ $PREFIX = -* ]] && return 1
   integer ret=1
-  local projects=($(_workspace_projects))
-
+  local def=$(_workspace_def)
+  local -a projects=($(_workspace_projects))
   # Autocomplete projects as an option$ (eg: nx run demo...).
   _describe -t nx-projects "Nx projects" projects && ret=0
   return ret
@@ -86,25 +79,12 @@ _list_targets() {
   [[ $PREFIX = -* ]] && return 1
   integer ret=1
   local def=$(_workspace_def)
-  local version=$(_workspace_version)
-  local projects=($(_workspace_projects))
+  local -a projects=($(_workspace_projects))
   local -a targets
 
+  # Collect targets for each project.
   for p in $projects; do
-    local -a executors
-
-    if [[ $version == 1 ]]; then
-      executors=($(< $def | jq ".projects[\"$p\"].architect" | jq -r 'keys[]'))
-    else
-      local projectType=$(< $def | jq ".projects[\"$p\"]" | jq -r 'type')
-      if [[ $projectType == "object" ]]; then
-        executors=($(< $def | jq ".projects[\"$p\"].targets" | jq -r 'keys[]'))
-      else
-        local standaloneProjectDef=$(< $def | jq -r ".projects[\"$p\"]")/project.json
-        executors=($(< $standaloneProjectDef  | jq ".targets" | jq -r 'keys[]'))
-      fi
-    fi
-
+    local -a executors=($(<$def | jq -r ".graph.nodes.\"$p\".data.targets | keys[]"))
     for e in $executors; do
       targets+=("$p\:$e")
     done
@@ -118,7 +98,7 @@ _list_generators() {
   [[ $PREFIX = -* ]] && return 1
   integer ret=1
   
-  local -a output generators
+  local -a generators
   local -a plugins
   
   plugins=(${(f)"$(nx list | awk '/Installed/,/Also available:/' | grep generators | awk -F ' ' '{print $1}')"})
