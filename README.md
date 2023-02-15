@@ -1,6 +1,6 @@
 # Nx completion plugin for Zsh
 
-> This plugin bring Zsh autocompletion to Nx.
+> This plugin bring Nx autocompletion to Zsh.
 
 ![demo](https://user-images.githubusercontent.com/8522558/111908149-67e8d780-8a58-11eb-9343-691f6d664163.gif)
 
