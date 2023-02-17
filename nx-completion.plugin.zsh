@@ -31,15 +31,11 @@ _check_workspace_def() {
     fi
   done
 
-  # For performance reasons, we cache the workspace definition file
-  # in a tmp file. This file is generated only once per workspace.
+  # To get all workspace projects and targets nx graph needs to be called to store the
+  # data in a file.
   local cwd_id=$(echo $PWD | md5sum | awk '{print $1}')
   tmp_cached_def="/tmp/nx-completion-$cwd_id.json"
-  
-  if [[ ! -f $tmp_cached_def ]]; then
-    nx graph --file="$tmp_cached_def" > /dev/null && ret=0
-  fi
-  
+  nx graph --file="$tmp_cached_def" > /dev/null && ret=0
   return ret
 }
 
