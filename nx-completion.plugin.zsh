@@ -57,7 +57,7 @@ _workspace_def() {
 _workspace_projects() {
   integer ret=1
   local def=$(_workspace_def)
-  local -a projects=($(<$def | jq -r '.graph.nodes | keys[]'))
+  local -a projects=($(<$def | jq -r '.graph.nodes[] | .name'))
   echo $projects && ret=0
   return ret
 }
@@ -79,16 +79,7 @@ _list_targets() {
   [[ $PREFIX = -* ]] && return 1
   integer ret=1
   local def=$(_workspace_def)
-  local -a projects=($(_workspace_projects))
-  local -a targets
-
-  # Collect targets for each project.
-  for p in $projects; do
-    local -a executors=($(<$def | jq -r ".graph.nodes.\"$p\".data.targets | keys[]"))
-    for e in $executors; do
-      targets+=("$p\:$e")
-    done
-  done
+  local -a targets=($(<$def | jq -r '.graph.nodes[] | { name: .name, target: (.data.targets | keys[]) } | .name + "\\:" + .target'))
 
   _describe -t project-targets 'Project targets' targets && ret=0
   return ret
