@@ -33,7 +33,7 @@ _check_workspace_def() {
 
   # To get all workspace projects and targets nx graph needs to be called to store the
   # data in a file.
-  local cwd_id=$(echo $PWD | md5sum | awk '{print $1}')
+  local cwd_id=$(echo $PWD | (command -v md5sum &> /dev/null && md5sum || md5 -r) | awk '{print $1}')
   tmp_cached_def="/tmp/nx-completion-$cwd_id.json"
   nx graph --file="$tmp_cached_def" > /dev/null && ret=0
   return ret
