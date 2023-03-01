@@ -25,17 +25,22 @@ _check_workspace_def() {
     "$PWD/nx.json"
   )
   
-  for file in $files; do
-    if [[ -f $file ]]; then
+  # return 1 if none of the files are present.
+  for f in $files; do
+    if [[ -f $f ]]; then
       ret=0
+      break
     fi
   done
 
   # To get all workspace projects and targets nx graph needs to be called to store the
   # data in a file.
-  local cwd_id=$(echo $PWD | (command -v md5sum &> /dev/null && md5sum || md5 -r) | awk '{print $1}')
-  tmp_cached_def="/tmp/nx-completion-$cwd_id.json"
-  nx graph --file="$tmp_cached_def" > /dev/null && ret=0
+  if [[ $ret -eq 0 ]]; then
+    local cwd_id=$(echo $PWD | (command -v md5sum &> /dev/null && md5sum || md5 -r) | awk '{print $1}')
+    tmp_cached_def="/tmp/nx-completion-$cwd_id.json"
+    nx graph --file="$tmp_cached_def" > /dev/null
+  fi
+
   return ret
 }
 
