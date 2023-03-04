@@ -63,6 +63,16 @@ _workspace_projects() {
   return ret
 }
 
+# Collect workspace targets
+_nx_workspace_targets() {
+  integer ret=1
+  if _nx_workspace_def; then
+    jq -r '[.graph.nodes[] | .data.targets | keys[]] | unique[] | if test(":") then . | gsub(":"; "\\:") else . end' $_nx_tmp_cached_def && ret=0
+  fi
+  return ret
+}
+
+
 # List projects within workspace definition file,
 # uses jq dependency to parse and manipulate JSON file
 # instead of using a dirty grep or sed.
@@ -80,7 +90,7 @@ _list_targets() {
   [[ $PREFIX = -* ]] && return 1
   integer ret=1
   local def=$(_workspace_def)
-  local -a targets=($(<$def | jq -r '.graph.nodes[] | { name: .name, target: (.data.targets | keys[]) } | .name + "\\:" + .target'))
+  local -a targets=($(<$def | jq -r '.graph.nodes[] | { name: .name, target: (.data.targets | keys[] | if test(":") then . | tojson | gsub(":"; "\\:") else . end ) } | .name + "\\:" + .target'))
 
   _describe -t project-targets 'Project targets' targets && ret=0
   return ret
@@ -148,13 +158,16 @@ _nx_commands() {
       'report:Reports useful version numbers to copy into the Nx issue template.'
       'list:[plugin]Lists installed plugins, capabilities of installed plugins and other available plugins.'
       'reset:Clears all the cached Nx artifacts and metadata about the workspace and shuts down the Nx Daemon.'
+      'show:Show information about the workspace'
       'connect-to-nx-cloud:Makes sure the workspace is connected to Nx Cloud.'
     )
     (( $#_nx_subcommands > 2 )) && _store_cache nx_subcommands _nx_subcommands
   fi
 
+  local _nx_subcommands_and_targets=($(_nx_workspace_targets) $_nx_subcommands)
+
   # Run completion.
-  _describe -t nx-commands "Nx commands" _nx_subcommands && ret=0
+  _describe -t nx-commands "Nx commands" _nx_subcommands_and_targets && ret=0
   return ret
 }
 
@@ -330,20 +343,22 @@ _nx_command() {
     (run-many)
       _arguments $(_nx_arguments) \
         $opts_help \
-        "--version[Show version number.]" \
-        "--target[Task to run for affected projects.]:target:" \
-        "--parallel[Parallelize the command.]" \
-        "--maxParallel[Max number of parallel processes.]:count:" \
-        "--projects[Projects to run (comma delimited).]:projects:_list_projects" \
-        "--all[Run the target on all projects in the workspace.]" \
+        "--all[(deprecated) Run the target on all projects in the workspace]" \
+        "--configuration[This is the configuration to use when performing tasks on projects]:configuration:" \
+        "--exclude[Exclude certain projects from being processed]:projects:_list_projects:" \
+        "--nx-bail[Stop command execution after the first failed task]" \
+        "--nx-ignore-cycles[Ignore cycles in the task graph]" \
+        "--output-style[Defines how Nx emits outputs tasks logs]:style:(dynamic static stream stream-without-prefixes)" \
+        "(--parallel --maxParallel)"{--parallel,--maxParallel}"[Max number of parallel processes. (default is 3)]:count:" \
+        "--projects[Projects to run (comma delimited).]:projects:_nx_list_projects" \
         "--runner[Override the tasks runner in nx.json.]:runner:" \
-        "--skipNxCache[Rerun the tasks even when the results are available in the cache.]" \
-        "--configuration[This is the configuration to use when performing tasks on projects.]:configuration:" \
-        "--withDeps[TInclude dependencies of specified projects when computing what to run.]" \
-        "--onlyFailed[Isolate projects which previously failed.]" \
-        "--verbose[Print additional error stack trace on failure.]" && ret=0
+        "(--skip-nx-cache --skipNxCache)"{--skip-nx-cache,--skipNxCache}"[Rerun the tasks even when the results are available in the cache.]" \
+        "(-t --target --targets)"{-t=,--target=,--targets=}"[Task(s) to run for affected projects.]:target:" \
+        "--version[Show version number.]" \
+        "--verbose[Print additional error stack trace on failure.]" \
+        && ret=0
     ;;
-    (run)
+    (run|run-one)
       _arguments $(_nx_arguments) \
         $opts_help \
         "(-c --configuration)"{-c=,--configuration=}"[A named builder configuration.]:configuration:" \
@@ -385,6 +400,11 @@ _nx_command() {
         "--verbose[Adds more details to output logging.]" \
         "--watch[Rebuild on change.]" \
         ":project:_list_projects" && ret=0
+    ;;
+    (show)
+      _arguments $(_nx_arguments) \
+        $opts_help \
+        ":object:(projects)" && ret=0
     ;;
     (t|test)
       _arguments $(_nx_arguments) \
