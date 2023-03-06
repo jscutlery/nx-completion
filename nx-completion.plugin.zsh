@@ -66,7 +66,7 @@ _workspace_projects() {
 # Collect workspace targets
 _nx_workspace_targets() {
   integer ret=1
-  if _nx_workspace_def; then
+  if _workspace_def; then
     jq -r '[.graph.nodes[] | .data.targets | keys[]] | unique[] | if test(":") then . | gsub(":"; "\\:") else . end' $_nx_tmp_cached_def && ret=0
   fi
   return ret
