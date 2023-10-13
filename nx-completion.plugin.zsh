@@ -349,7 +349,7 @@ _nx_command() {
         "--nx-ignore-cycles[Ignore cycles in the task graph]" \
         "--output-style[Defines how Nx emits outputs tasks logs]:style:(dynamic static stream stream-without-prefixes)" \
         "(--parallel --maxParallel)"{--parallel,--maxParallel}"[Max number of parallel processes. (default is 3)]:count:" \
-        "--projects[Projects to run (comma delimited).]:projects:_nx_list_projects" \
+        "--projects[Projects to run (comma delimited).]:projects:_list_projects" \
         "--runner[Override the tasks runner in nx.json.]:runner:" \
         "(--skip-nx-cache --skipNxCache)"{--skip-nx-cache,--skipNxCache}"[Rerun the tasks even when the results are available in the cache.]" \
         "(-t --target --targets)"{-t=,--target=,--targets=}"[Task(s) to run for affected projects.]:target:" \
