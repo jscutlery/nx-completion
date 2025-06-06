@@ -24,7 +24,7 @@ _check_workspace_def() {
     "$PWD/workspace.json"
     "$PWD/nx.json"
   )
-  
+
   # return 1 if none of the files are present.
   for f in $files; do
     if [[ -f $f ]]; then
@@ -38,13 +38,21 @@ _check_workspace_def() {
   if [[ $ret -eq 0 ]]; then
     local cwd_id=$(echo $PWD | (command -v md5sum &> /dev/null && md5sum || md5 -r) | awk '{print $1}')
     tmp_cached_def="/tmp/nx-completion-$cwd_id.json"
-    nx graph --file="$tmp_cached_def" > /dev/null
+
+    # Check if Nx cached project graph exists first
+    local nx_cached_graph="$PWD/.nx/workspace-data/project-graph.json"
+    if [[ -f "$nx_cached_graph" ]]; then
+      tmp_cached_def="$nx_cached_graph"
+    else
+      # Generate new graph file if cached one doesn't exist
+      nx graph --file="$tmp_cached_def" > /dev/null
+    fi
   fi
 
   return ret
 }
 
-# Read workspace definition from generated tmp file. 
+# Read workspace definition from generated tmp file.
 # Assumes _check_workspace_def get called before.
 _workspace_def() {
   integer ret=1
@@ -98,10 +106,10 @@ _list_targets() {
 _list_generators() {
   [[ $PREFIX = -* ]] && return 1
   integer ret=1
-  
+
   local -a generators
   local -a plugins
-  
+
   plugins=(${(f)"$(nx list | awk '/Installed/,/Also available:/' | grep generators | awk -F ' ' '{print $1}')"})
 
   for p in $plugins; do
@@ -111,7 +119,7 @@ _list_generators() {
       generators+=("$p\:$g")
     done
   done
-  
+
   # Run completion.
   _describe -t nx-generators "Nx generators" generators && ret=0
   return ret
@@ -127,10 +135,10 @@ _nx_commands() {
   if [[ -z "$cache_policy" ]]; then
     zstyle ":completion:${curcontext}:" cache-policy _nx_caching_policy
   fi
-  
+
   if ( [[ ${+_nx_subcommands} -eq 0 ]] || _cache_invalid nx_subcommands ) \
     && ! _retrieve_cache nx_subcommands
-  then  
+  then
     # Add Nx related commands.
     _nx_subcommands=(
       'generate:Generate or update source code. (e.g., nx generate @nrwl/js\:lib mylib) [aliases\: g]'
@@ -194,7 +202,7 @@ _nx_command() {
     "--verbose[Print additional error stack trace on failure.]"
     "--skip-nx-cache[Rerun the tasks even when the results are available in the cache.]"
   )
-  
+
   case "$words[1]" in
     (affected|affected:apps|affected:build|affected:libs|affected:e2e|affected:lint|affected:test|affected:graph|format|format:write|format:check|print-affected)
       _arguments $(_nx_arguments) \
@@ -469,9 +477,9 @@ _nx_completion() {
 
   integer ret=1
   local curcontext="$curcontext" state _command_args opts_help
-  
+
   opts_help=("--help[Shows a help message for this command in the console]")
-  
+
   _arguments $(_nx_arguments) \
     $opts_help \
     "--version[Show version number]" \
