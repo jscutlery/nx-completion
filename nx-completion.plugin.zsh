@@ -308,19 +308,18 @@ _nx_get_executor_options() {
     local nodes_path=$(_get_nodes_path "$def")
     local -a options=()
     if [[ "$nodes_path" == ".graph.nodes" ]]; then
-      options=($(jq -r --arg exec "$executor" '
+      jq -r --arg exec "$executor" '
         [.graph.nodes[] | .data.targets[]? | select(.executor == $exec) | .options // {} | keys[]] |
         unique |
-        map("--" + . + "[Option for " + $exec + "]") |
-        .[]' "$def" 2>/dev/null))
+        map("--" + . + "[" + . + " option]") |
+        .[]' "$def" 2>/dev/null && ret=0
     else
-      options=($(jq -r --arg exec "$executor" '
+      jq -r --arg exec "$executor" '
         [.nodes[] | .data.targets[]? | select(.executor == $exec) | .options // {} | keys[]] |
         unique |
-        map("--" + . + "[Option for " + $exec + "]") |
-        .[]' "$def" 2>/dev/null))
+        map("--" + . + "[" + . + " option]") |
+        .[]' "$def" 2>/dev/null && ret=0
     fi
-    echo "${options[@]}" && ret=0
   fi
   return ret
 }
