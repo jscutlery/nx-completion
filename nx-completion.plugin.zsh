@@ -59,7 +59,7 @@ _check_workspace_def() {
       tmp_cached_def="$nx_cached_graph"
     else
       # Generate new graph file if cached one doesn't exist
-      nx graph --file="$tmp_cached_def" > /dev/null
+      nx graph --file="$tmp_cached_def" > /dev/null 2>&1
     fi
   fi
 
@@ -76,11 +76,34 @@ _workspace_def() {
   return ret
 }
 
+# Helper function to get the correct nodes path based on JSON structure
+_get_nodes_path() {
+  local def="$1"
+  if [[ -f "$def" ]]; then
+    # Check if the JSON has .graph.nodes or directly .nodes
+    if jq -e '.graph.nodes' "$def" >/dev/null 2>&1; then
+      echo ".graph.nodes"
+    elif jq -e '.nodes' "$def" >/dev/null 2>&1; then
+      echo ".nodes"
+    else
+      # Fallback to .nodes for backwards compatibility
+      echo ".nodes"
+    fi
+  else
+    echo ".nodes"
+  fi
+}
+
 # Collect workspace projects
 _workspace_projects() {
   integer ret=1
   local def=$(_workspace_def)
-  local -a projects=($(<$def | jq -r '.graph.nodes[] | .name'))
+  local nodes_path=$(_get_nodes_path "$def")
+  if [[ "$nodes_path" == ".graph.nodes" ]]; then
+    local -a projects=($(<$def | jq -r '.graph.nodes[] | .name'))
+  else
+    local -a projects=($(<$def | jq -r '.nodes[] | .name'))
+  fi
   echo $projects && ret=0
   return ret
 }
@@ -89,7 +112,12 @@ _workspace_projects() {
 _nx_workspace_targets() {
   integer ret=1
   local def=$(_workspace_def)
-  jq -r '[.graph.nodes[] | .data.targets | keys[]] | unique[] | if test(":") then . | gsub(":"; "\\:") else . end' $def && ret=0
+  local nodes_path=$(_get_nodes_path "$def")
+  if [[ "$nodes_path" == ".graph.nodes" ]]; then
+    jq -r '[.graph.nodes[] | .data.targets | keys[]] | unique[] | if test(":") then . | gsub(":"; "\\:") else . end' "$def" && ret=0
+  else
+    jq -r '[.nodes[] | .data.targets | keys[]] | unique[] | if test(":") then . | gsub(":"; "\\:") else . end' "$def" && ret=0
+  fi
   return ret
 }
 
@@ -111,7 +139,12 @@ _list_targets() {
   [[ $PREFIX = -* ]] && return 1
   integer ret=1
   local def=$(_workspace_def)
-  local -a targets=($(<$def | jq -r '.graph.nodes[] | { name: .name, target: (.data.targets | keys[] | if test(":") then . | tojson | gsub(":"; "\\:") else . end ) } | .name + "\\:" + .target'))
+  local nodes_path=$(_get_nodes_path "$def")
+  if [[ "$nodes_path" == ".graph.nodes" ]]; then
+    local -a targets=($(<$def | jq -r '.graph.nodes[] | { name: .name, target: (.data.targets | keys[] | if test(":") then . | tojson | gsub(":"; "\\:") else . end ) } | .name + "\\:" + .target'))
+  else
+    local -a targets=($(<$def | jq -r '.nodes[] | { name: .name, target: (.data.targets | keys[] | if test(":") then . | tojson | gsub(":"; "\\:") else . end ) } | .name + "\\:" + .target'))
+  fi
 
   _describe -t project-targets 'Project targets' targets && ret=0
   return ret
@@ -246,7 +279,13 @@ _nx_get_executors() {
       return 0
     fi
 
-    local -a executors=($(jq -r '[.graph.nodes[] | .data.targets[]? | .executor] | unique | .[]' "$def" 2>/dev/null))
+    local nodes_path=$(_get_nodes_path "$def")
+    local -a executors=()
+    if [[ "$nodes_path" == ".graph.nodes" ]]; then
+      executors=($(jq -r '[.graph.nodes[] | .data.targets[]? | .executor] | unique | .[]' "$def" 2>/dev/null))
+    else
+      executors=($(jq -r '[.nodes[] | .data.targets[]? | .executor] | unique | .[]' "$def" 2>/dev/null))
+    fi
 
     # Cache the results if we got any
     if [[ ${#executors} -gt 0 ]]; then
@@ -266,11 +305,21 @@ _nx_get_executor_options() {
   local def=$(_workspace_def)
   if [[ -f "$def" ]]; then
     # Get all option keys for this executor across all projects
-    local -a options=($(jq -r --arg exec "$executor" '
-      [.graph.nodes[] | .data.targets[]? | select(.executor == $exec) | .options // {} | keys[]] |
-      unique |
-      map("--" + . + "[Option for " + $exec + "]") |
-      .[]' "$def" 2>/dev/null))
+    local nodes_path=$(_get_nodes_path "$def")
+    local -a options=()
+    if [[ "$nodes_path" == ".graph.nodes" ]]; then
+      options=($(jq -r --arg exec "$executor" '
+        [.graph.nodes[] | .data.targets[]? | select(.executor == $exec) | .options // {} | keys[]] |
+        unique |
+        map("--" + . + "[Option for " + $exec + "]") |
+        .[]' "$def" 2>/dev/null))
+    else
+      options=($(jq -r --arg exec "$executor" '
+        [.nodes[] | .data.targets[]? | select(.executor == $exec) | .options // {} | keys[]] |
+        unique |
+        map("--" + . + "[Option for " + $exec + "]") |
+        .[]' "$def" 2>/dev/null))
+    fi
     echo "${options[@]}" && ret=0
   fi
   return ret
@@ -282,12 +331,22 @@ _nx_get_target_executor() {
   local def=$(_workspace_def)
   if [[ -f "$def" ]]; then
     # Optimized: find the most common executor for this target name
-    jq -r --arg target "$target" '
-      [.graph.nodes[] | .data.targets[$target]?.executor] |
-      map(select(. != null)) |
-      group_by(.) |
-      max_by(length) |
-      first // empty' "$def" 2>/dev/null
+    local nodes_path=$(_get_nodes_path "$def")
+    if [[ "$nodes_path" == ".graph.nodes" ]]; then
+      jq -r --arg target "$target" '
+        [.graph.nodes[] | .data.targets[$target]?.executor] |
+        map(select(. != null)) |
+        group_by(.) |
+        max_by(length) |
+        first // empty' "$def" 2>/dev/null
+    else
+      jq -r --arg target "$target" '
+        [.nodes[] | .data.targets[$target]?.executor] |
+        map(select(. != null)) |
+        group_by(.) |
+        max_by(length) |
+        first // empty' "$def" 2>/dev/null
+    fi
   fi
 }
 
