@@ -1,0 +1,282 @@
+{
+  "nodes": {
+    "frontend-app": {
+      "name": "frontend-app",
+      "type": "app",
+      "data": {
+        "root": "apps/frontend-app",
+        "projectType": "application",
+        "targets": {
+          "build": {
+            "executor": "@nx/webpack:webpack",
+            "options": {
+              "outputPath": "dist/apps/frontend-app",
+              "index": "apps/frontend-app/src/index.html",
+              "main": "apps/frontend-app/src/main.ts"
+            },
+            "configurations": {
+              "production": {
+                "fileReplacements": [
+                  {
+                    "replace": "apps/frontend-app/src/environments/environment.ts",
+                    "with": "apps/frontend-app/src/environments/environment.prod.ts"
+                  }
+                ]
+              },
+              "development": {
+                "buildOptimizer": false,
+                "optimization": false,
+                "vendorChunk": true,
+                "extractLicenses": false,
+                "sourceMap": true,
+                "namedChunks": true
+              }
+            }
+          },
+          "serve": {
+            "executor": "@nx/webpack:dev-server",
+            "options": {
+              "buildTarget": "frontend-app:build"
+            },
+            "configurations": {
+              "production": {
+                "buildTarget": "frontend-app:build:production"
+              },
+              "development": {
+                "buildTarget": "frontend-app:build:development"
+              }
+            }
+          },
+          "test": {
+            "executor": "@nx/jest:jest",
+            "options": {
+              "jestConfig": "apps/frontend-app/jest.config.ts",
+              "passWithNoTests": true
+            }
+          },
+          "lint": {
+            "executor": "@nx/eslint:lint",
+            "options": {
+              "lintFilePatterns": ["apps/frontend-app/**/*.{ts,tsx,js,jsx}"]
+            }
+          },
+          "e2e": {
+            "executor": "@nx/cypress:cypress",
+            "options": {
+              "cypressConfig": "apps/frontend-app-e2e/cypress.config.ts",
+              "devServerTarget": "frontend-app:serve:development"
+            }
+          }
+        }
+      }
+    },
+    "backend-api": {
+      "name": "backend-api",
+      "type": "app",
+      "data": {
+        "root": "apps/backend-api",
+        "projectType": "application",
+        "targets": {
+          "build": {
+            "executor": "@nx/node:build",
+            "options": {
+              "outputPath": "dist/apps/backend-api",
+              "main": "apps/backend-api/src/main.ts",
+              "tsConfig": "apps/backend-api/tsconfig.app.json"
+            },
+            "configurations": {
+              "production": {
+                "optimization": true,
+                "extractLicenses": true,
+                "inspect": false,
+                "fileReplacements": [
+                  {
+                    "replace": "apps/backend-api/src/environments/environment.ts",
+                    "with": "apps/backend-api/src/environments/environment.prod.ts"
+                  }
+                ]
+              }
+            }
+          },
+          "serve": {
+            "executor": "@nx/node:node",
+            "options": {
+              "buildTarget": "backend-api:build"
+            },
+            "configurations": {
+              "production": {
+                "buildTarget": "backend-api:build:production"
+              }
+            }
+          },
+          "test": {
+            "executor": "@nx/jest:jest",
+            "options": {
+              "jestConfig": "apps/backend-api/jest.config.ts",
+              "passWithNoTests": true
+            }
+          },
+          "lint": {
+            "executor": "@nx/eslint:lint",
+            "options": {
+              "lintFilePatterns": ["apps/backend-api/**/*.ts"]
+            }
+          }
+        }
+      }
+    },
+    "shared-utils": {
+      "name": "shared-utils",
+      "type": "lib",
+      "data": {
+        "root": "libs/shared/utils",
+        "projectType": "library",
+        "targets": {
+          "build": {
+            "executor": "@nx/js:tsc",
+            "options": {
+              "outputPath": "dist/libs/shared/utils",
+              "main": "libs/shared/utils/src/index.ts",
+              "tsConfig": "libs/shared/utils/tsconfig.lib.json"
+            }
+          },
+          "test": {
+            "executor": "@nx/jest:jest",
+            "options": {
+              "jestConfig": "libs/shared/utils/jest.config.ts",
+              "passWithNoTests": true
+            }
+          },
+          "lint": {
+            "executor": "@nx/eslint:lint",
+            "options": {
+              "lintFilePatterns": ["libs/shared/utils/**/*.ts"]
+            }
+          }
+        }
+      }
+    },
+    "ui-components": {
+      "name": "ui-components",
+      "type": "lib",
+      "data": {
+        "root": "libs/ui-components",
+        "projectType": "library",
+        "targets": {
+          "build": {
+            "executor": "@nx/rollup:rollup",
+            "options": {
+              "outputPath": "dist/libs/ui-components",
+              "tsConfig": "libs/ui-components/tsconfig.lib.json",
+              "project": "libs/ui-components/package.json",
+              "entryFile": "libs/ui-components/src/index.ts"
+            }
+          },
+          "test": {
+            "executor": "@nx/jest:jest",
+            "options": {
+              "jestConfig": "libs/ui-components/jest.config.ts",
+              "passWithNoTests": true
+            }
+          },
+          "lint": {
+            "executor": "@nx/eslint:lint",
+            "options": {
+              "lintFilePatterns": ["libs/ui-components/**/*.{ts,tsx,js,jsx}"]
+            }
+          },
+          "storybook": {
+            "executor": "@storybook/angular:start-storybook",
+            "options": {
+              "port": 4400,
+              "configDir": "libs/ui-components/.storybook"
+            }
+          },
+          "build-storybook": {
+            "executor": "@storybook/angular:build-storybook",
+            "options": {
+              "configDir": "libs/ui-components/.storybook",
+              "outputDir": "dist/storybook/ui-components"
+            }
+          }
+        }
+      }
+    },
+    "data-access": {
+      "name": "data-access",
+      "type": "lib",
+      "data": {
+        "root": "libs/data-access",
+        "projectType": "library",
+        "targets": {
+          "build": {
+            "executor": "@nx/js:tsc",
+            "options": {
+              "outputPath": "dist/libs/data-access",
+              "main": "libs/data-access/src/index.ts",
+              "tsConfig": "libs/data-access/tsconfig.lib.json"
+            }
+          },
+          "test": {
+            "executor": "@nx/jest:jest",
+            "options": {
+              "jestConfig": "libs/data-access/jest.config.ts",
+              "passWithNoTests": true
+            }
+          },
+          "lint": {
+            "executor": "@nx/eslint:lint",
+            "options": {
+              "lintFilePatterns": ["libs/data-access/**/*.ts"]
+            }
+          }
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "frontend-app": [
+      {
+        "source": "frontend-app",
+        "target": "shared-utils",
+        "type": "static"
+      },
+      {
+        "source": "frontend-app",
+        "target": "ui-components",
+        "type": "static"
+      },
+      {
+        "source": "frontend-app",
+        "target": "data-access",
+        "type": "static"
+      }
+    ],
+    "backend-api": [
+      {
+        "source": "backend-api",
+        "target": "shared-utils",
+        "type": "static"
+      },
+      {
+        "source": "backend-api",
+        "target": "data-access",
+        "type": "static"
+      }
+    ],
+    "ui-components": [
+      {
+        "source": "ui-components",
+        "target": "shared-utils",
+        "type": "static"
+      }
+    ],
+    "data-access": [
+      {
+        "source": "data-access",
+        "target": "shared-utils",
+        "type": "static"
+      }
+    ]
+  }
+}

@@ -92,6 +92,36 @@ chmod +x clear-cache.zsh
 ./clear-cache.zsh
 ```
 
+## Testing
+
+This repository includes a comprehensive test environment in the `test/` directory with simplified project structures for easy testing and development.
+
+### Test Environment Structure
+
+```
+test/
+├── .nx/workspace-data/project-graph.json  # Main test graph (.nodes structure)
+├── nx.json                                # Nx workspace config
+├── project-graph-nested.json              # Test graph (.graph.nodes structure) 
+├── test-completion.zsh                    # Automated test script
+├── demo-completion.zsh                    # Interactive demo script
+└── README.md                              # Test environment docs
+```
+
+### Quick Testing
+
+```bash
+# Run automated tests
+cd test && ./test-completion.zsh
+
+# Interactive completion testing
+cd test
+source ../nx-completion.plugin.zsh
+nx <TAB>  # Test completions
+```
+
+The test environment includes 5 projects (frontend-app, backend-api, shared-utils, ui-components, data-access) with realistic Nx configurations and supports testing both JSON structure formats.
+
 ## License
 
 This project is MIT licensed.

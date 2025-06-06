@@ -1,0 +1,141 @@
+{
+  "graph": {
+    "nodes": {
+      "frontend-app": {
+        "name": "frontend-app",
+        "type": "app",
+        "data": {
+          "root": "apps/frontend-app",
+          "projectType": "application",
+          "targets": {
+            "build": {
+              "executor": "@nx/webpack:webpack",
+              "options": {
+                "outputPath": "dist/apps/frontend-app",
+                "index": "apps/frontend-app/src/index.html",
+                "main": "apps/frontend-app/src/main.ts"
+              },
+              "configurations": {
+                "production": {
+                  "fileReplacements": [
+                    {
+                      "replace": "apps/frontend-app/src/environments/environment.ts",
+                      "with": "apps/frontend-app/src/environments/environment.prod.ts"
+                    }
+                  ]
+                },
+                "development": {
+                  "buildOptimizer": false,
+                  "optimization": false,
+                  "vendorChunk": true,
+                  "extractLicenses": false,
+                  "sourceMap": true,
+                  "namedChunks": true
+                }
+              }
+            },
+            "serve": {
+              "executor": "@nx/webpack:dev-server",
+              "options": {
+                "buildTarget": "frontend-app:build"
+              },
+              "configurations": {
+                "production": {
+                  "buildTarget": "frontend-app:build:production"
+                },
+                "development": {
+                  "buildTarget": "frontend-app:build:development"
+                }
+              }
+            },
+            "test": {
+              "executor": "@nx/jest:jest",
+              "options": {
+                "jestConfig": "apps/frontend-app/jest.config.ts",
+                "passWithNoTests": true
+              }
+            },
+            "lint": {
+              "executor": "@nx/eslint:lint",
+              "options": {
+                "lintFilePatterns": ["apps/frontend-app/**/*.{ts,tsx,js,jsx}"]
+              }
+            }
+          }
+        }
+      },
+      "backend-api": {
+        "name": "backend-api",
+        "type": "app",
+        "data": {
+          "root": "apps/backend-api",
+          "projectType": "application",
+          "targets": {
+            "build": {
+              "executor": "@nx/node:build",
+              "options": {
+                "outputPath": "dist/apps/backend-api",
+                "main": "apps/backend-api/src/main.ts",
+                "tsConfig": "apps/backend-api/tsconfig.app.json"
+              }
+            },
+            "serve": {
+              "executor": "@nx/node:node",
+              "options": {
+                "buildTarget": "backend-api:build"
+              }
+            },
+            "test": {
+              "executor": "@nx/jest:jest",
+              "options": {
+                "jestConfig": "apps/backend-api/jest.config.ts",
+                "passWithNoTests": true
+              }
+            }
+          }
+        }
+      },
+      "shared-lib": {
+        "name": "shared-lib",
+        "type": "lib",
+        "data": {
+          "root": "libs/shared-lib",
+          "projectType": "library",
+          "targets": {
+            "build": {
+              "executor": "@nx/js:tsc",
+              "options": {
+                "outputPath": "dist/libs/shared-lib",
+                "main": "libs/shared-lib/src/index.ts",
+                "tsConfig": "libs/shared-lib/tsconfig.lib.json"
+              }
+            },
+            "test": {
+              "executor": "@nx/jest:jest",
+              "options": {
+                "jestConfig": "libs/shared-lib/jest.config.ts",
+                "passWithNoTests": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "dependencies": {
+      "frontend-app": [
+        {
+          "source": "frontend-app",
+          "target": "shared-lib",
+          "type": "static"
+        }
+      ],
+      "backend-api": [
+        {
+          "source": "backend-api",
+          "target": "shared-lib",
+          "type": "static"
+        }
+      ]
+    }
+  }
+}
