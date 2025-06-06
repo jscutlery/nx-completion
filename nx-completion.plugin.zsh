@@ -306,18 +306,17 @@ _nx_get_executor_options() {
   if [[ -f "$def" ]]; then
     # Get all option keys for this executor across all projects
     local nodes_path=$(_get_nodes_path "$def")
-    local -a options=()
     if [[ "$nodes_path" == ".graph.nodes" ]]; then
       jq -r --arg exec "$executor" '
         [.graph.nodes[] | .data.targets[]? | select(.executor == $exec) | .options // {} | keys[]] |
         unique |
-        map("--" + . + "[" + . + " option]") |
+        map("--" + . + "[" + . + "]") |
         .[]' "$def" 2>/dev/null && ret=0
     else
       jq -r --arg exec "$executor" '
         [.nodes[] | .data.targets[]? | select(.executor == $exec) | .options // {} | keys[]] |
         unique |
-        map("--" + . + "[" + . + " option]") |
+        map("--" + . + "[" + . + "]") |
         .[]' "$def" 2>/dev/null && ret=0
     fi
   fi
@@ -484,6 +483,56 @@ _nx_parse_command_options() {
       fi
     done <<< "$options_section"
   fi
+
+  # Add dynamic executor options for certain commands
+  local -a all_executors=($(_nx_get_executors))
+  local -a dynamic_opts=()
+  
+  case "$command" in
+    build|b)
+      # Get options from build-related executors
+      local -a build_executors=(${(M)all_executors:#*build*} ${(M)all_executors:#*webpack*} ${(M)all_executors:#*browser*})
+      for executor in $build_executors; do
+        local -a exec_opts=($(_nx_get_executor_options "$executor"))
+        dynamic_opts+=($exec_opts)
+      done
+      ;;
+    test|t)
+      # Get options from test-related executors
+      local -a test_executors=(${(M)all_executors:#*jest*} ${(M)all_executors:#*cypress*} ${(M)all_executors:#*test*})
+      for executor in $test_executors; do
+        local -a exec_opts=($(_nx_get_executor_options "$executor"))
+        dynamic_opts+=($exec_opts)
+      done
+      ;;
+    serve|s)
+      # Get options from serve-related executors
+      local -a serve_executors=(${(M)all_executors:#*serve*} ${(M)all_executors:#*dev-server*})
+      for executor in $serve_executors; do
+        local -a exec_opts=($(_nx_get_executor_options "$executor"))
+        dynamic_opts+=($exec_opts)
+      done
+      ;;
+    e2e)
+      # Get options from e2e-related executors
+      local -a e2e_executors=(${(M)all_executors:#*cypress*} ${(M)all_executors:#*e2e*})
+      for executor in $e2e_executors; do
+        local -a exec_opts=($(_nx_get_executor_options "$executor"))
+        dynamic_opts+=($exec_opts)
+      done
+      ;;
+    lint)
+      # Get options from lint-related executors
+      local -a lint_executors=(${(M)all_executors:#*lint*} ${(M)all_executors:#*eslint*})
+      for executor in $lint_executors; do
+        local -a exec_opts=($(_nx_get_executor_options "$executor"))
+        dynamic_opts+=($exec_opts)
+      done
+      ;;
+  esac
+
+  # Combine parsed options with dynamic options (remove duplicates)
+  parsed_options+=(${(u)dynamic_opts[@]})
 
   echo "${parsed_options[@]}"
 }
