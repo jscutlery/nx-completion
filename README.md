@@ -6,9 +6,22 @@
 
 ## Features
 
+- **Dynamic command parsing**: Automatically discovers commands from `nx --help` output
+- **Intelligent caching**: Uses Nx's built-in project graph cache when available
+- **Auto-updating completions**: Commands and options stay current with your Nx version
+- **Workspace executor integration**: Dynamically extracts completion options from project executors
 - Commands and arguments autocompletion
 - Projects, targets, and generators autocompletion
 - Support different workspace versions
+- **Performance optimized**: Caches parsed commands and reuses project graph data
+
+## Performance Improvements
+
+- **Project graph caching**: Checks for `.nx/workspace-data/project-graph.json` before calling `nx graph`
+- **Dynamic command discovery**: Parses `nx --help` instead of maintaining static command lists
+- **Workspace-aware options**: Extracts options from project executors for enhanced completion
+- **Zsh completion caching**: Uses zsh's built-in caching system for better performance
+- **All commands dynamic**: Every command now uses dynamic parsing for maximum flexibility
 
 ## Install
 
@@ -20,7 +33,7 @@ Install [`jq`](https://stedolan.github.io/jq/) dependency:
 apt install jq
 ```
 
-On MacOS you can install with: 
+On MacOS you can install with:
 
 ```shell
 brew install jq

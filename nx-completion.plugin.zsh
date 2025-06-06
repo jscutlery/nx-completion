@@ -1,3 +1,17 @@
+# Nx Completion Plugin for Zsh
+#
+# Features:
+# - Dynamic command parsing from 'nx --help' output
+# - Automatic caching of parsed commands and options
+# - Fallback to Nx cached project graph (.nx/workspace-data/project-graph.json)
+# - Dynamic option parsing for individual commands
+# - Support for workspace projects, targets, and generators
+#
+# Performance optimizations:
+# - Uses cached project graph when available
+# - Caches dynamically parsed commands and options
+# - Implements zsh completion caching policy
+
 # @todo: Document.
 _nx_command() {
   echo "${words[2]}"
@@ -139,35 +153,77 @@ _nx_commands() {
   if ( [[ ${+_nx_subcommands} -eq 0 ]] || _cache_invalid nx_subcommands ) \
     && ! _retrieve_cache nx_subcommands
   then
-    # Add Nx related commands.
-    _nx_subcommands=(
-      'generate:Generate or update source code. (e.g., nx generate @nrwl/js\:lib mylib) [aliases\: g]'
-      'run:[project][\:target][\:configuration] Run a target for a project. (e.g., nx run myapp\:serve\:production)'
-      'run-many:Run task for multiple listed projects.'
-      'affected:Run task for affected projects.'
-      'affected\:apps:Print applications affected by changes.'
-      'affected\:libs:Print libraries affected by changes.'
-      'affected\:graph:Graph dependencies affected by changes. [aliases: affected\:dep-graph]'
-      'affected\:build:Build applications and publishable libraries affected by changes.'
-      'affected\:test:Test projects affected by changes.'
-      'affected\:e2e:Run e2e tests for the applications affected by changes.'
-      'affected\:lint:Lint projects affected by changes.'
-      'print-affected:Graph execution plan.'
-      'graph:Graph dependencies within workspace. [aliases\: dep-graph]'
-      'repair:Repair any configuration that is no longer supported by Nx.'
-      'init:Adds nx.json file and installs nx if not installed already.'
-      'exec:Executes any command as if it was a target on the project.'
-      'format\:check:Check for un-formatted files.'
-      'format\:write:Overwrite un-formatted files. [aliases\: format]'
-      'workspace-lint:[files...] Lint workspace or list of files.'
-      'workspace-generator:[name] Runs a workspace generator from the tools/generators directory. [aliases\: workspace-schematic]'
-      'migrate:Creates a migrations file or runs migrations from the migrations file.'
-      'report:Reports useful version numbers to copy into the Nx issue template.'
-      'list:[plugin]Lists installed plugins, capabilities of installed plugins and other available plugins.'
-      'reset:Clears all the cached Nx artifacts and metadata about the workspace and shuts down the Nx Daemon.'
-      'show:Show information about the workspace'
-      'connect-to-nx-cloud:Makes sure the workspace is connected to Nx Cloud.'
-    )
+    # Dynamically parse nx --help to get commands
+    _nx_subcommands=()
+
+    # Parse nx --help output to extract commands and descriptions
+    local help_output=$(nx --help 2>/dev/null)
+    if [[ $? -eq 0 && -n "$help_output" ]]; then
+      # Extract commands section and parse each line
+      local commands_section=$(echo "$help_output" | awk '/^Commands:$/,/^Options:$/ {print}' | grep -E '^\s+nx ')
+
+      while IFS= read -r line; do
+        if [[ -n "$line" ]]; then
+          # Extract command name and description
+          local cmd_line=$(echo "$line" | sed 's/^\s*nx\s*//' | sed 's/\s\s\+/ /')
+          local cmd_name=$(echo "$cmd_line" | awk '{print $1}' | sed 's/\[.*\]//')
+          local cmd_desc=$(echo "$cmd_line" | sed 's/^[^[:space:]]*\s*//')
+
+          # Handle special cases for command names with arguments
+          case "$cmd_name" in
+            add)
+              cmd_name="add"
+              ;;
+            generate)
+              cmd_name="generate"
+              ;;
+            import)
+              cmd_name="import"
+              ;;
+            migrate)
+              cmd_name="migrate"
+              ;;
+            run)
+              cmd_name="run"
+              ;;
+            login)
+              cmd_name="login"
+              ;;
+            "<target>")
+              # Skip the default target entry
+              continue
+              ;;
+          esac
+
+          # Escape colons in descriptions and add to array
+          cmd_desc=$(echo "$cmd_desc" | sed 's/:/\\:/g')
+          cmd_name=$(echo "$cmd_name" | sed 's/:/\\:/g')
+
+          if [[ -n "$cmd_name" && -n "$cmd_desc" ]]; then
+            _nx_subcommands+=("$cmd_name:$cmd_desc")
+          fi
+        fi
+      done <<< "$commands_section"
+    fi
+
+    # Fallback to basic commands if parsing failed
+    if [[ ${#_nx_subcommands} -eq 0 ]]; then
+      _nx_subcommands=(
+        'generate:Generate or update source code'
+        'run:Run a target for a project'
+        'run-many:Run target for multiple listed projects'
+        'affected:Run target for affected projects'
+        'graph:Graph dependencies within workspace'
+        'list:Lists installed plugins and available plugins'
+        'migrate:Creates a migrations file or runs migrations'
+        'init:Adds Nx to any type of workspace'
+        'repair:Repair any configuration that is no longer supported'
+        'reset:Clears cached Nx artifacts and shuts down daemon'
+        'report:Reports useful version numbers'
+        'show:Show information about the workspace'
+      )
+    fi
+
     (( $#_nx_subcommands > 2 )) && _store_cache nx_subcommands _nx_subcommands
   fi
 
@@ -176,6 +232,202 @@ _nx_commands() {
   # Run completion.
   _describe -t nx-commands "Nx commands" _nx_subcommands_and_targets && ret=0
   return ret
+}
+
+# Extract all unique executors from project graph
+_nx_get_executors() {
+  integer ret=1
+  local def=$(_workspace_def)
+  if [[ -f "$def" ]]; then
+    # Check cache first
+    local cache_key="nx_executors"
+    if ( [[ ${(P)+cache_key} -eq 1 ]] && ! _cache_invalid "$cache_key" ); then
+      echo "${(P)cache_key[@]}"
+      return 0
+    fi
+
+    local -a executors=($(jq -r '[.graph.nodes[] | .data.targets[]? | .executor] | unique | .[]' "$def" 2>/dev/null))
+
+    # Cache the results if we got any
+    if [[ ${#executors} -gt 0 ]]; then
+      eval "${cache_key}=(\"\${executors[@]}\")"
+      _store_cache "$cache_key" "${cache_key}"
+    fi
+
+    echo "${executors[@]}" && ret=0
+  fi
+  return ret
+}
+
+# Extract executor options from project graph for a specific executor
+_nx_get_executor_options() {
+  local executor="$1"
+  integer ret=1
+  local def=$(_workspace_def)
+  if [[ -f "$def" ]]; then
+    # Get all option keys for this executor across all projects
+    local -a options=($(jq -r --arg exec "$executor" '
+      [.graph.nodes[] | .data.targets[]? | select(.executor == $exec) | .options // {} | keys[]] |
+      unique |
+      map("--" + . + "[Option for " + $exec + "]") |
+      .[]' "$def" 2>/dev/null))
+    echo "${options[@]}" && ret=0
+  fi
+  return ret
+}
+
+# Map common target names to likely executors for better completion
+_nx_get_target_executor() {
+  local target="$1"
+  local def=$(_workspace_def)
+  if [[ -f "$def" ]]; then
+    # Optimized: find the most common executor for this target name
+    jq -r --arg target "$target" '
+      [.graph.nodes[] | .data.targets[$target]?.executor] |
+      map(select(. != null)) |
+      group_by(.) |
+      max_by(length) |
+      first // empty' "$def" 2>/dev/null
+  fi
+}
+
+# Get dynamic options for common Nx commands based on executors
+_nx_get_dynamic_command_options() {
+  local command="$1"
+  local -a dynamic_opts=()
+
+  # Get all executors once and filter for the specific command
+  local -a all_executors=($(_nx_get_executors))
+
+  case "$command" in
+    build|b)
+      # Get options from build-related executors
+      local -a build_executors=(${(M)all_executors:#*build*} ${(M)all_executors:#*webpack*} ${(M)all_executors:#*browser*})
+      for executor in $build_executors; do
+        local -a exec_opts=($(_nx_get_executor_options "$executor"))
+        dynamic_opts+=($exec_opts)
+      done
+      ;;
+    test|t)
+      # Get options from test-related executors
+      local -a test_executors=(${(M)all_executors:#*jest*} ${(M)all_executors:#*cypress*} ${(M)all_executors:#*test*})
+      for executor in $test_executors; do
+        local -a exec_opts=($(_nx_get_executor_options "$executor"))
+        dynamic_opts+=($exec_opts)
+      done
+      ;;
+    serve|s)
+      # Get options from serve-related executors
+      local -a serve_executors=(${(M)all_executors:#*serve*} ${(M)all_executors:#*dev-server*})
+      for executor in $serve_executors; do
+        local -a exec_opts=($(_nx_get_executor_options "$executor"))
+        dynamic_opts+=($exec_opts)
+      done
+      ;;
+    lint|l)
+      # Get options from lint-related executors
+      local -a lint_executors=(${(M)all_executors:#*lint*} ${(M)all_executors:#*eslint*})
+      for executor in $lint_executors; do
+        local -a exec_opts=($(_nx_get_executor_options "$executor"))
+        dynamic_opts+=($exec_opts)
+      done
+      ;;
+    e2e|e)
+      # Get options from e2e-related executors
+      local -a e2e_executors=(${(M)all_executors:#*e2e*} ${(M)all_executors:#*cypress*} ${(M)all_executors:#*playwright*})
+      for executor in $e2e_executors; do
+        local -a exec_opts=($(_nx_get_executor_options "$executor"))
+        dynamic_opts+=($exec_opts)
+      done
+      ;;
+  esac
+
+  # Remove duplicates and return
+  echo "${(u)dynamic_opts[@]}"
+}
+
+# Cache-aware wrapper for dynamic option parsing
+_nx_get_command_options() {
+  local command="$1"
+  local cache_key="nx_${command}_options"
+
+  # Check if we have cached options and they're still valid
+  if ( [[ ${(P)+cache_key} -eq 1 ]] && ! _cache_invalid "$cache_key" ); then
+    echo "${(P)cache_key[@]}"
+    return 0
+  fi
+
+  # Parse options dynamically
+  local -a options=($(_nx_parse_command_options "$command"))
+
+  # Cache the results if we got any
+  if [[ ${#options} -gt 0 ]]; then
+    eval "${cache_key}=(\"\${options[@]}\")"
+    _store_cache "$cache_key" "${cache_key}"
+  fi
+
+  echo "${options[@]}"
+}
+
+# Parse command-specific options from nx [command] --help
+_nx_parse_command_options() {
+  local command="$1"
+  local -a parsed_options=()
+
+  # Get help for the specific command
+  local help_output=$(nx "$command" --help 2>/dev/null)
+  if [[ $? -eq 0 && -n "$help_output" ]]; then
+    # Extract options section
+    local options_section=$(echo "$help_output" | awk '/^Options:$/,/^$|^[A-Z]/ {print}' | grep -E '^\s+(-|--)')
+
+    while IFS= read -r line; do
+      if [[ -n "$line" ]]; then
+        # Clean up the line
+        line=$(echo "$line" | sed 's/^\s*//')
+
+        # Parse different option formats:
+        # "  -c, --configuration  Description"
+        # "      --some-option     Description"
+        # "  -f, --force          Description [boolean]"
+
+        local short_opt=""
+        local long_opt=""
+        local desc=""
+
+        # Extract options and description
+        if [[ "$line" =~ ^(-[a-zA-Z]),?\s+(--[a-zA-Z0-9-]+)\s+(.*)$ ]]; then
+          # Format: -c, --configuration Description
+          short_opt="${match[1]}"
+          long_opt="${match[2]}"
+          desc="${match[3]}"
+        elif [[ "$line" =~ ^(--[a-zA-Z0-9-]+)\s+(.*)$ ]]; then
+          # Format: --option Description
+          long_opt="${match[1]}"
+          desc="${match[2]}"
+        elif [[ "$line" =~ ^(-[a-zA-Z])\s+(.*)$ ]]; then
+          # Format: -o Description
+          short_opt="${match[1]}"
+          desc="${match[2]}"
+        fi
+
+        # Clean up description: remove type info in brackets, escape colons
+        if [[ -n "$desc" ]]; then
+          desc=$(echo "$desc" | sed 's/\[boolean\]$//' | sed 's/\[string\]$//' | sed 's/\[number\]$//' | sed 's/:/\\:/g' | sed 's/\s*$//')
+        fi
+
+        # Add to parsed options
+        if [[ -n "$short_opt" && -n "$long_opt" ]]; then
+          parsed_options+=("($short_opt $long_opt)"{$short_opt,$long_opt}"[$desc]")
+        elif [[ -n "$long_opt" ]]; then
+          parsed_options+=("$long_opt[$desc]")
+        elif [[ -n "$short_opt" ]]; then
+          parsed_options+=("$short_opt[$desc]")
+        fi
+      fi
+    done <<< "$options_section"
+  fi
+
+  echo "${parsed_options[@]}"
 }
 
 _nx_command() {
@@ -210,248 +462,314 @@ _nx_command() {
         $opts_affected && ret=0
     ;;
     (b|build)
-      _arguments $(_nx_arguments) \
-        $opts_help \
-        "--allowedCommonJsDependencies[A list of CommonJS packages that are allowed to be used without a build time warning.]:packages:" \
-        "--aot[Build using Ahead of Time compilation.]" \
-        "--baseHref[Base url for the application being built.]" \
-        "--verbose[Display additional details about internal operations during execution.]" \
-        "--buildOptimizer[Enables '@angular-devkit/build-optimizer' optimizations when using the 'aot' option.]" \
-        "--commonChunk[Use a separate bundle containing code used across multiple bundles.]" \
-        "(-c --configuration)"{-c=,--configuration=}"[A named builder configuration, setting this explicitly overrides the \"--prod\" flag.]:configuration:" \
-        "--crossOrigin[Define the crossorigin attribute setting of elements that provide CORS support.]" \
-        "--deleteOutputPath[Delete the output path before building.]" \
-        "--deployUrl[URL where files will be deployed.]:deploy_url:" \
-        "--experimentalRollupPass[Concatenate modules with Rollup before bundling them with Webpack.]" \
-        "--extractCss[Extract CSS from global styles into '.css' files instead of '.js'.]" \
-        "--extractLicenses[Extract all licenses in a separate file.]" \
-        "--forkTypeChecker[Run the TypeScript type checker in a forked process.]" \
-        "--i18nFile[Localization file to use for i18n.]:file:_files" \
-        "--i18nFormat[Format of the localization file specified with --i18n-file.]:format:" \
-        "--i18nLocale[Locale to use for i18n.]:locale:" \
-        "--i18nMissingTranslation[How to handle missing translations for i18n.]:handler:" \
-        "--index[Configures the generation of the application's HTML index.]:index:" \
-        "--lazyModules[List of additional NgModule files that will be lazy loaded. Lazy router modules will be discovered automatically.]:files:_files" \
-        "--localize" \
-        "--main[The full path for the main entry point to the app, relative to the current workspace.]:path:_files" \
-        "--namedChunks[Use file name for lazy loaded chunks.]:filename:" \
-        "--ngswConfigPath[Path to ngsw-config.json.]:filepath:" \
-        "--optimization[Enables optimization of the build output.]" \
-        "--outputHashing[Define the output filename cache-busting hashing mode.]:mode:" \
-        "--outputPath[The full path for the new output directory, relative to the current workspace.]:path:_path_files -/" \
-        "--poll[Enable and define the file watching poll time period in milliseconds.]" \
-        "--polyfills[The full path for the polyfills file, relative to the current workspace.]:file:_files" \
-        "--preserveSymlinks[Do not use the real path when resolving modules.]" \
-        "--prod[When true, sets the build configuration to the production target, shorthand for \"--configuration=production\".]" \
-        "--progress[Log progress to the console while building.]" \
-        "--resourcesOutputPath[The path where style resources will be placed, relative to outputPath.]:path:_path_files -/" \
-        "--serviceWorker[Generates a service worker config for production builds.]" \
-        "--showCircularDependencies[Show circular dependency warnings on builds.]" \
-        "--sourceMap[Output sourcemaps.]" \
-        "--statsJson[Generates a 'stats.json' file which can be analyzed using tools such as 'webpack-bundle-analyzer'.]" \
-        "--subresourceIntegrity[Enables the use of subresource integrity validation.]" \
-        "--tsConfig[The full path for the TypeScript configuration file, relative to the current workspace.]:file:_files" \
-        "--vendorChunk[Use a separate bundle containing only vendor libraries.]" \
-        "--verbose[Adds more details to output logging.]" \
-        "--watch[Run build when files change.]" \
-        "--webWorkerTsConfig[TypeScript configuration for Web Worker modules.]:file:_files" \
-        "--skipNxCache[Rerun the tasks even when the results are available in the cache.]" \
-        ":project:_list_projects" && ret=0
+      # Use dynamic parsing combined with workspace executor options
+      local -a build_opts=($(_nx_get_command_options "build"))
+      local -a workspace_opts=($(_nx_get_dynamic_command_options "build"))
+      local -a all_opts=($build_opts $workspace_opts)
+
+      if [[ ${#all_opts} -gt 0 ]]; then
+        _arguments $(_nx_arguments) \
+          $opts_help \
+          ${(u)all_opts[@]} \
+          ":project:_list_projects" && ret=0
+      else
+        # Minimal fallback
+        _arguments $(_nx_arguments) \
+          $opts_help \
+          "(-c --configuration)"{-c=,--configuration=}"[A named builder configuration.]:configuration:" \
+          "--verbose[Display additional details about internal operations during execution.]" \
+          ":project:_list_projects" && ret=0
+      fi
     ;;
-    (dep-graph)
-      _arguments $(_nx_arguments) \
-        $opts_help \
-        "--version[Show version number.]" \
-        "--file[Output file (e.g. --file=output.json or --file=dep-graph.html).]:file:_files" \
-        "--focus[Use to show the dependency graph for a particular project and every node that is either an ancestor or a descendant.]:project:_list_projects" \
-        "--exclude[List of projects delimited by commas to exclude from the dependency graph.]:projects:_list_projects:" \
-        "--groupByFolder[Group projects by folder in dependency graph.]" \
-        "--host[Bind the dep graph server to a specific ip address.]:host:_hosts" \
-        "--port[Bind the dep graph server to a specific port.]:port" && ret=0
+    (dep-graph|graph)
+      # Use dynamic parsing for graph command
+      local -a graph_opts=($(_nx_get_command_options "graph"))
+      if [[ ${#graph_opts} -gt 0 ]]; then
+        _arguments $(_nx_arguments) \
+          $opts_help \
+          $graph_opts && ret=0
+      else
+        # Fallback to basic options
+        _arguments $(_nx_arguments) \
+          $opts_help \
+          "--file[Output file (e.g. --file=output.json or --file=dep-graph.html).]:file:_files" \
+          "--focus[Use to show the dependency graph for a particular project.]:project:_list_projects" \
+          "--exclude[List of projects to exclude from the dependency graph.]:projects:_list_projects:" && ret=0
+      fi
     ;;
     (e|e2e)
-      _arguments $(_nx_arguments) \
-        $opts_help \
-        "--baseUrl[Use this to pass directly the address of your distant server address with the port running your application.]:url:" \
-        "--ciBuildId[A unique identifier for a run to enable grouping or parallelization.]:id:" \
-        "(-c --configuration)"{-c=,--configuration=}"[A named builder configuration.]:configuration:" \
-        "--cypressConfig[The path of the Cypress configuration json file.]:file:_files" \
-        "--devServerTarget[Dev server target to run tests against.]:target:" \
-        "--exit[Whether or not the Cypress Test Runner will stay open after running tests in a spec file.]" \
-        "--group[A named group for recorded runs in the Cypress dashboard.]:group:" \
-        "--headless[Whether or not to open the Cypress application to run the tests. If set to 'true', will run in headless mode.]" \
-        "--ignoreTestFiles[A String or Array of glob patterns used to ignore test files that would otherwise be shown in your list of tests. Cypress uses minimatch with the options: {dot: true, matchBase: true}.]:pattern:" \
-        "--key[The key cypress should use to run tests in parallel/record the run (CI only).]:value:" \
-        "--parallel[Whether or not Cypress should run its tests in parallel (CI only).]:value:" \
-        "--prod[When true, sets the build configuration to the production target, shorthand for \"--configuration=production\".]" \
-        "--record[Whether or not Cypress should record the results of the tests.]" \
-        "--reporter[The reporter used during cypress run.]:reporter:" \
-        "--reporterOptions[The reporter options used. Supported options depend on the reporter.]:options:" \
-        "--spec[A comma delimited glob string that is provided to the Cypress runner to specify which spec files to run. i.e. '**examples/**,**actions.spec**.]:spec:" \
-        "--tsConfig[The path of the Cypress tsconfig configuration json file.]:file:_files" \
-        "--watch[Recompile and run tests when files change.]" \
-        "--skipNxCache[Rerun the tasks even when the results are available in the cache.]" \
-        ":project:_list_projects" && ret=0
+      # Use dynamic parsing combined with workspace executor options
+      local -a e2e_opts=($(_nx_get_command_options "e2e"))
+      local -a workspace_opts=($(_nx_get_dynamic_command_options "e2e"))
+      local -a all_opts=($e2e_opts $workspace_opts)
+
+      if [[ ${#all_opts} -gt 0 ]]; then
+        _arguments $(_nx_arguments) \
+          $opts_help \
+          ${(u)all_opts[@]} \
+          ":project:_list_projects" && ret=0
+      else
+        # Minimal fallback
+        _arguments $(_nx_arguments) \
+          $opts_help \
+          "(-c --configuration)"{-c=,--configuration=}"[A named builder configuration.]:configuration:" \
+          "--watch[Recompile and run tests when files change.]" \
+          ":project:_list_projects" && ret=0
+      fi
     ;;
     (g|generate)
-      _arguments $(_nx_arguments) \
-        $opts_help \
-        "--version[Show version number.]" \
-        "--defaults[When true, disables interactive input prompts for options with a default.]" \
-        "--interactive[When false, disables interactive input prompts.]" \
-        "(-d --dry-run)"{-d,--dry-run}"[When true, runs through and reports activity without writing out results.]" \
-        "(-f --force)"{-f,--force}"[When true, forces overwriting of existing files.]" \
-        ":generator:_list_generators" && ret=0
+      # Use dynamic option parsing for generate command
+      local -a generate_opts=($(_nx_get_command_options "generate"))
+      if [[ ${#generate_opts} -gt 0 ]]; then
+        _arguments $(_nx_arguments) \
+          $opts_help \
+          $generate_opts \
+          ":generator:_list_generators" && ret=0
+      else
+        # Fallback to static options if parsing fails
+        _arguments $(_nx_arguments) \
+          $opts_help \
+          "--version[Show version number.]" \
+          "--defaults[When true, disables interactive input prompts for options with a default.]" \
+          "--interactive[When false, disables interactive input prompts.]" \
+          "(-d --dry-run)"{-d,--dry-run}"[When true, runs through and reports activity without writing out results.]" \
+          "(-f --force)"{-f,--force}"[When true, forces overwriting of existing files.]" \
+          ":generator:_list_generators" && ret=0
+      fi
     ;;
     (l|lint)
-      _arguments $(_nx_arguments) \
-        $opts_help \
-        "(-c --configuration)"{-c=,--configuration=}"[The linting configuration to use.]:configuration:" \
-        "--exclude[Files to exclude from linting.]:files:_files" \
-        "--files[Files to include from linting.]:files:_files" \
-        "--fix[Fixes linting errors (may overwrite linted files).]" \
-        "--force[Succeeds even if there was linting errors.]" \
-        "--format[Output format.]:format:(prose json stylish verbose pmd msbuild checkstyle vso fileslist)" \
-        "--silent[Show output text.]" \
-        "--tsConfig[The name of the TypeScript configuration file.]:file:_files" \
-        "--tslintConfig[The name of the TSLint configuration file.]:name:" \
-        "--skipNxCache[Rerun the tasks even when the results are available in the cache.]" \
-        "--typeCheck[Controls the type check for linting.]" && ret=0
+      # Use dynamic parsing combined with workspace executor options
+      local -a lint_opts=($(_nx_get_command_options "lint"))
+      local -a workspace_opts=($(_nx_get_dynamic_command_options "lint"))
+      local -a all_opts=($lint_opts $workspace_opts)
+
+      if [[ ${#all_opts} -gt 0 ]]; then
+        _arguments $(_nx_arguments) \
+          $opts_help \
+          ${(u)all_opts[@]} \
+          ":project:_list_projects" && ret=0
+      else
+        # Minimal fallback
+        _arguments $(_nx_arguments) \
+          $opts_help \
+          "(-c --configuration)"{-c=,--configuration=}"[The linting configuration to use.]:configuration:" \
+          "--fix[Fixes linting errors (may overwrite linted files).]" \
+          "--format[Output format.]:format:(prose json stylish verbose)" \
+          ":project:_list_projects" && ret=0
+      fi
     ;;
     (migrate)
-      _arguments $(_nx_arguments) \
-        $opts_help \
-        "--runMigrations[Run migrations.]:file:_files" \
-        ":package:" && ret=0
+      # Use dynamic parsing for migrate command
+      local -a migrate_opts=($(_nx_get_command_options "migrate"))
+      if [[ ${#migrate_opts} -gt 0 ]]; then
+        _arguments $(_nx_arguments) \
+          $opts_help \
+          $migrate_opts \
+          ":package:" && ret=0
+      else
+        # Fallback options
+        _arguments $(_nx_arguments) \
+          $opts_help \
+          "--runMigrations[Run migrations.]:file:_files" \
+          ":package:" && ret=0
+      fi
     ;;
     (n|new)
-      _arguments $(_nx_arguments) \
-        $opts_help \
-        "--appName[Run migrations.]:name:" \
-        "(-c --collection)"{-c=,--collection=}"[A collection of schematics to use in generating the initial application.]:collection:" \
-        "--commit[Initial repository commit information.]" \
-        "--defaultBase[Default base branch for affected.]:branch:" \
-        "--defaults[When true, disables interactive input prompts for options with a default.]" \
-        "--directory[The directory name to create the workspace in.]:path:_path_files -/" \
-        "(-d --dry-run)"{-d,--dry-run}"[When true, runs through and reports activity without writing out results.]" \
-        "(-f --force)"{-f,--force}"[When true, forces overwriting of existing files.]" \
-        "--interactive[When false, disables interactive input prompts.]" \
-        "--linter[The tool to use for running lint checks.]:linter:" \
-        "--npmScope[Npm scope for importing libs.]:scope:" \
-        "--nxCloud[Connect the workspace to the free tier of the distributed cache provided by Nx Cloud.]" \
-        "--packageManager[The package manager used to install dependencies.]:pm:" \
-        "--preset[What to create in the new workspace.]:preset:" \
-        "(-g --skip-git)"{-g,--skip-git}"[Skip initializing a git repository.]" \
-        "--skipInstall[Skip installing dependency packages.]" \
-        "--style[The file extension to be used for style files.]:style:(css scss sass)" \
-        "(-v --verbose)"{-v,--verbose}"[When true, adds more details to output logging.]" \
-        ":package:" && ret=0
+      # Use dynamic parsing for new command
+      local -a new_opts=($(_nx_get_command_options "new"))
+      if [[ ${#new_opts} -gt 0 ]]; then
+        _arguments $(_nx_arguments) \
+          $opts_help \
+          $new_opts \
+          ":package:" && ret=0
+      else
+        # Fallback options
+        _arguments $(_nx_arguments) \
+          $opts_help \
+          "--preset[What to create in the new workspace.]:preset:" \
+          "--packageManager[The package manager used to install dependencies.]:pm:" \
+          "(-d --dry-run)"{-d,--dry-run}"[When true, runs through and reports activity without writing out results.]" \
+          ":package:" && ret=0
+      fi
     ;;
     (run-many)
-      _arguments $(_nx_arguments) \
-        $opts_help \
-        "--all[(deprecated) Run the target on all projects in the workspace]" \
-        "--configuration[This is the configuration to use when performing tasks on projects]:configuration:" \
-        "--exclude[Exclude certain projects from being processed]:projects:_list_projects:" \
-        "--nx-bail[Stop command execution after the first failed task]" \
-        "--nx-ignore-cycles[Ignore cycles in the task graph]" \
-        "--output-style[Defines how Nx emits outputs tasks logs]:style:(dynamic static stream stream-without-prefixes)" \
-        "(--parallel --maxParallel)"{--parallel,--maxParallel}"[Max number of parallel processes. (default is 3)]:count:" \
-        "--projects[Projects to run (comma delimited).]:projects:_list_projects" \
-        "--runner[Override the tasks runner in nx.json.]:runner:" \
-        "(--skip-nx-cache --skipNxCache)"{--skip-nx-cache,--skipNxCache}"[Rerun the tasks even when the results are available in the cache.]" \
-        "(-t --target --targets)"{-t=,--target=,--targets=}"[Task(s) to run for affected projects.]:target:" \
-        "--version[Show version number.]" \
-        "--verbose[Print additional error stack trace on failure.]" \
-        && ret=0
+      # Use dynamic option parsing for run-many command
+      local -a run_many_opts=($(_nx_get_command_options "run-many"))
+      if [[ ${#run_many_opts} -gt 0 ]]; then
+        _arguments $(_nx_arguments) \
+          $opts_help \
+          $run_many_opts && ret=0
+      else
+        # Fallback to static options if parsing fails
+        _arguments $(_nx_arguments) \
+          $opts_help \
+          "--all[(deprecated) Run the target on all projects in the workspace]" \
+          "--configuration[This is the configuration to use when performing tasks on projects]:configuration:" \
+          "--exclude[Exclude certain projects from being processed]:projects:_list_projects:" \
+          "--nx-bail[Stop command execution after the first failed task]" \
+          "--nx-ignore-cycles[Ignore cycles in the task graph]" \
+          "--output-style[Defines how Nx emits outputs tasks logs]:style:(dynamic static stream stream-without-prefixes)" \
+          "(--parallel --maxParallel)"{--parallel,--maxParallel}"[Max number of parallel processes. (default is 3)]:count:" \
+          "--projects[Projects to run (comma delimited).]:projects:_list_projects" \
+          "--runner[Override the tasks runner in nx.json.]:runner:" \
+          "(--skip-nx-cache --skipNxCache)"{--skip-nx-cache,--skipNxCache}"[Rerun the tasks even when the results are available in the cache.]" \
+          "(-t --target --targets)"{-t=,--target=,--targets=}"[Task(s) to run for affected projects.]:target:" \
+          "--version[Show version number.]" \
+          "--verbose[Print additional error stack trace on failure.]" \
+          && ret=0
+      fi
     ;;
     (run|run-one)
-      _arguments $(_nx_arguments) \
-        $opts_help \
-        "(-c --configuration)"{-c=,--configuration=}"[A named builder configuration.]:configuration:" \
-        ":target:_list_targets" && ret=0
-        # Because run command use the following pattern my-project:executor:configuration,
-        # we are concatening these 3 arguments as a single one because no clue how to deal with this special separator,
-        # maybe one day someone will contribute with the solution, who knows.
+      # Use dynamic parsing for run command
+      local -a run_opts=($(_nx_get_command_options "run"))
+      if [[ ${#run_opts} -gt 0 ]]; then
+        _arguments $(_nx_arguments) \
+          $opts_help \
+          $run_opts \
+          ":target:_list_targets" && ret=0
+      else
+        # Fallback to basic options if parsing fails
+        _arguments $(_nx_arguments) \
+          $opts_help \
+          "(-c --configuration)"{-c=,--configuration=}"[A named builder configuration.]:configuration:" \
+          "--verbose[Print additional error stack trace on failure.]" \
+          ":target:_list_targets" && ret=0
+      fi
+      # Because run command use the following pattern my-project:executor:configuration,
+      # we are concatening these 3 arguments as a single one because no clue how to deal with this special separator,
+      # maybe one day someone will contribute with the solution, who knows.
     ;;
     (s|serve)
-      _arguments $(_nx_arguments) \
-        $opts_help \
-        "--allowedHosts[List of hosts that are allowed to access the dev server.]:hosts:_hosts" \
-        "--aot[Build using Ahead of Time compilation.]" \
-        "--baseHref[Base url for the application being built.]:url:" \
-        "--browserTarget[Target to serve.]:brower_target:" \
-        "--commonChunk[Use a separate bundle containing code used across multiple bundles.]" \
-        "(-c --configuration)"{-c=,--configuration=}"[A named builder configuration.]:configuration:" \
-        "--deployUrl[URL where files will be deployed.]:deploy_url:" \
-        "--disableHostCheck[Don't verify connected clients are part of allowed hosts.]" \
-        "--hmr[Enable hot module replacement.]" \
-        "--hmrWarning[Show a warning when the --hmr option is enabled.]" \
-        "--host[Host to listen on.]:host:_hosts" \
-        "--liveReload[Whether to reload the page on change, using live-reload.]" \
-        "(-o --open)"{-o,--open}"[Opens the url in default browser.]" \
-        "--optimization[Enables optimization of the build output.]" \
-        "--poll[Enable and define the file watching poll time period in milliseconds.]" \
-        "--port[Port to listen on.]:port:" \
-        "--prod[When true, sets the build configuration to the production target, shorthand for \"--configuration=production\".]" \
-        "--progress[Log progress to the console while building.]" \
-        "--proxyConfig[Proxy configuration file.]:file:_files" \
-        "--publicHost[The URL that the browser client (or live-reload client, if enabled) should use to connect to the development server. Use for a complex dev server setup, such as one with reverse proxies.]:public_host:" \
-        "--servePath[The pathname where the app will be served.]:pathname:" \
-        "--servePathDefaultWarning[Show a warning when deploy-url/base-href use unsupported serve path values.]" \
-        "--sourceMap[Output sourcemaps.]" \
-        "--ssl[Serve using HTTPS.]" \
-        "--sslCert[SSL certificate to use for serving HTTPS.]:certificate:_files" \
-        "--sslKey[SSL key to use for serving HTTPS.]:key:" \
-        "--vendorChunk[Use a separate bundle containing only vendor libraries.]" \
-        "--verbose[Adds more details to output logging.]" \
-        "--watch[Rebuild on change.]" \
-        ":project:_list_projects" && ret=0
+      # Use dynamic parsing combined with workspace executor options
+      local -a serve_opts=($(_nx_get_command_options "serve"))
+      local -a workspace_opts=($(_nx_get_dynamic_command_options "serve"))
+      local -a all_opts=($serve_opts $workspace_opts)
+
+      if [[ ${#all_opts} -gt 0 ]]; then
+        _arguments $(_nx_arguments) \
+          $opts_help \
+          ${(u)all_opts[@]} \
+          ":project:_list_projects" && ret=0
+      else
+        # Fallback to static options if parsing fails
+        _arguments $(_nx_arguments) \
+          $opts_help \
+          "--allowedHosts[List of hosts that are allowed to access the dev server.]:hosts:_hosts" \
+          "--aot[Build using Ahead of Time compilation.]" \
+          "--baseHref[Base url for the application being built.]:url:" \
+          "--browserTarget[Target to serve.]:brower_target:" \
+          "--commonChunk[Use a separate bundle containing code used across multiple bundles.]" \
+          "(-c --configuration)"{-c=,--configuration=}"[A named builder configuration.]:configuration:" \
+          "--deployUrl[URL where files will be deployed.]:deploy_url:" \
+          "--disableHostCheck[Don't verify connected clients are part of allowed hosts.]" \
+          "--hmr[Enable hot module replacement.]" \
+          "--hmrWarning[Show a warning when the --hmr option is enabled.]" \
+          "--host[Host to listen on.]:host:_hosts" \
+          "--liveReload[Whether to reload the page on change, using live-reload.]" \
+          "(-o --open)"{-o,--open}"[Opens the url in default browser.]" \
+          "--optimization[Enables optimization of the build output.]" \
+          "--poll[Enable and define the file watching poll time period in milliseconds.]" \
+          "--port[Port to listen on.]:port:" \
+          "--prod[When true, sets the build configuration to the production target, shorthand for \"--configuration=production\".]" \
+          "--progress[Log progress to the console while building.]" \
+          "--proxyConfig[Proxy configuration file.]:file:_files" \
+          "--publicHost[The URL that the browser client (or live-reload client, if enabled) should use to connect to the development server. Use for a complex dev server setup, such as one with reverse proxies.]:public_host:" \
+          "--servePath[The pathname where the app will be served.]:pathname:" \
+          "--servePathDefaultWarning[Show a warning when deploy-url/base-href use unsupported serve path values.]" \
+          "--sourceMap[Output sourcemaps.]" \
+          "--ssl[Serve using HTTPS.]" \
+          "--sslCert[SSL certificate to use for serving HTTPS.]:certificate:_files" \
+          "--sslKey[SSL key to use for serving HTTPS.]:key:" \
+          "--vendorChunk[Use a separate bundle containing only vendor libraries.]" \
+          "--verbose[Adds more details to output logging.]" \
+          "--watch[Rebuild on change.]" \
+          ":project:_list_projects" && ret=0
+      fi
     ;;
     (show)
-      _arguments $(_nx_arguments) \
-        $opts_help \
-        ":object:(projects)" && ret=0
+      # Use dynamic parsing for show command
+      local -a show_opts=($(_nx_get_command_options "show"))
+      if [[ ${#show_opts} -gt 0 ]]; then
+        _arguments $(_nx_arguments) \
+          $opts_help \
+          $show_opts \
+          ":object:(projects)" && ret=0
+      else
+        # Fallback to basic options if parsing fails
+        _arguments $(_nx_arguments) \
+          $opts_help \
+          "--verbose[Print additional error stack trace on failure.]" \
+          ":object:(projects)" && ret=0
+      fi
     ;;
     (t|test)
-      _arguments $(_nx_arguments) \
-        $opts_help \
-        "(-b --bail)"{-o,--open}"[Exit the test suite immediately after n number of failing tests (https://jestjs.io/docs/en/cli#bail).]" \
-        "--ci[Whether to run Jest in continuous integration (CI) mode. This option is on by default in most popular CI environments. It will prevent snapshots from being written unless explicitly requested (https://jestjs.io/docs/en/cli#ci).]" \
-        "--clearCache[Deletes the Jest cache directory and then exits without running tests. Will delete Jest's default cache directory. Note: clearing the cache will reduce performance.]" \
-        "(-b --bail)"{-o,--open}"[Exit the test suite immediately after n number of failing tests (https://jestjs.io/docs/en/cli#bail).]" \
-        "--commonChunk[Use a separate bundle containing code used across multiple bundles.]" \
-        "(-coverage --code-coverage)"{-coverage,--code-coverage}"[Indicates that test coverage information should be collected and reported in the output (https://jestjs.io/docs/en/cli#coverage).]" \
-        "(--color -colors)"{--color,-colors}"[Forces test results output color highlighting (even if stdout is not a TTY). Set to false if you would like to have no colors (https://jestjs.io/docs/en/cli#colors).]" \
-        "--config[The path to a Jest config file specifying how to find and execute tests. If no rootDir is set in the config, the directory containing the config file is assumed to be the rootDir for the project. This can also be a JSON-encoded value which Jest will use as configuration.]:file:_files" \
-        "(-c --configuration)"{-c=,--configuration=}"[A named builder configuration.]:configuration:" \
-        "--coverageDirectory[The directory where Jest should output its coverage files.]:path:_path_files -/" \
-        "--coverageReporters[A list of reporter names that Jest uses when writing coverage reports. Any istanbul reporter.]:reporter:" \
-        "--detectOpenHandles[Attempt to collect and print open handles preventing Jest from exiting cleanly (https://jestjs.io/docs/en/cli.html#--detectopenhandles).]" \
-        "--findRelatedTests[Find and run the tests that cover a comma separated list of source files that were passed in as arguments (https://jestjs.io/docs/en/cli#findrelatedtests-spaceseparatedlistofsourcefiles).]:files:_files" \
-        "--jestConfig[The path of the Jest configuration. (https://jestjs.io/docs/en/configuration).]:file:_files" \
-        "--json[Prints the test results in JSON. This mode will send all other test output and user messages to stderr (https://jestjs.io/docs/en/cli#json).]" \
-        "(-w --max-workers)"{-w=,--max-workers=}"[Specifies the maximum number of workers the worker-pool will spawn for running tests. This defaults to the number of the cores available on your machine. Useful for CI. (its usually best not to override this default) (https://jestjs.io/docs/en/cli#maxworkers-num).]:count:" \
-        "(-o --only-changed)"{-o,--only-changed}"[Attempts to identify which tests to run based on which files have changed in the current repository. Only works if you're running tests in a git or hg repository at the moment (https://jestjs.io/docs/en/cli#onlychanged).]" \
-        "--outputFile[Write test results to a file when the --json option is also specified (https://jestjs.io/docs/en/cli#outputfile-filename).]:file:_files" \
-        "--passWithNoTests[Will not fail if no tests are found (for example while using --testPathPattern.) (https://jestjs.io/docs/en/cli#passwithnotests).]" \
-        "--prod[When true, sets the build configuration to the production target, shorthand for \"--configuration=production\".]" \
-        "--reporters[Run tests with specified reporters. Reporter options are not available via CLI. Example with multiple reporters: jest --reporters=\"default\" --reporters=\"jest-junit\" (https://jestjs.io/docs/en/cli#reporters).]:reporters:" \
-        "(-i --run-in-band)"{-i,--run-in-band}"[Run all tests serially in the current process (rather than creating a worker pool of child processes that run tests). This is sometimes useful for debugging, but such use cases are pretty rare. Useful for CI. (https://jestjs.io/docs/en/cli#runinband).]" \
-        "--showConfig[Print your Jest config and then exits (https://jestjs.io/docs/en/cli#--showconfig).]" \
-        "--silent[Prevent tests from printing messages through the console (https://jestjs.io/docs/en/cli#silent).]" \
-        "--testFile[The name of the file to test.]:filename:" \
-        "--testLocationInResults[Adds a location field to test results. Used to report location of a test in a reporter. { \"column\": 4, \"line\": 5 } (https://jestjs.io/docs/en/cli#testlocationinresults).]" \
-        "(-t --testNamePattern)"{-t=,--test-name-pattern=}"[Run only tests with a name that matches the regex pattern (https://jestjs.io/docs/en/cli#testnamepattern-regex).]:pattern:" \
-        "--testPathPattern[An array of regexp pattern strings that is matched against all tests paths before executing the test (https://jestjs.io/docs/en/cli#testpathpattern-regex).]:path_pattern:" \
-        "--testResultsProcessor[Node module that implements a custom results processor (https://jestjs.io/docs/en/configuration#testresultsprocessor-string).]:processor:" \
-        "(-u --update-snapshot)"{-u,--update-snapshot}"[Use this flag to re-record snapshots. Can be used together with a test suite pattern or with --testNamePattern to re-record snapshot for test matching the pattern (https://jestjs.io/docs/en/cli#updatesnapshot).]" \
-        "--useStderr[Divert all output to stderr.]" \
-        "--verbose[Display individual test results with the test suite hierarchy. (https://jestjs.io/docs/en/cli#verbose).]" \
-        "--watch[Watch files for changes and rerun tests related to changed files. If you want to re-run all tests when a file has changed, use the --watchAll option (https://jestjs.io/docs/en/cli#watch).]" \
-        "--watchAll[Watch files for changes and rerun all tests when something changes. If you want to re-run only the tests that depend on the changed files, use the --watch option. (https://jestjs.io/docs/en/cli#watchall)]" \
-        "--skipNxCache[Rerun the tasks even when the results are available in the cache.]" \
-        ":project:_list_projects" && ret=0
+      # Use dynamic parsing combined with workspace executor options
+      local -a test_opts=($(_nx_get_command_options "test"))
+      local -a workspace_opts=($(_nx_get_dynamic_command_options "test"))
+      local -a all_opts=($test_opts $workspace_opts)
+
+      if [[ ${#all_opts} -gt 0 ]]; then
+        _arguments $(_nx_arguments) \
+          $opts_help \
+          ${(u)all_opts[@]} \
+          ":project:_list_projects" && ret=0
+      else
+        # Fallback to static options if parsing fails
+        _arguments $(_nx_arguments) \
+          $opts_help \
+          "(-b --bail)"{-o,--open}"[Exit the test suite immediately after n number of failing tests (https://jestjs.io/docs/en/cli#bail).]" \
+          "--ci[Whether to run Jest in continuous integration (CI) mode. This option is on by default in most popular CI environments. It will prevent snapshots from being written unless explicitly requested (https://jestjs.io/docs/en/cli#ci).]" \
+          "--clearCache[Deletes the Jest cache directory and then exits without running tests. Will delete Jest's default cache directory. Note: clearing the cache will reduce performance.]" \
+          "(-b --bail)"{-o,--open}"[Exit the test suite immediately after n number of failing tests (https://jestjs.io/docs/en/cli#bail).]" \
+          "--commonChunk[Use a separate bundle containing code used across multiple bundles.]" \
+          "(-coverage --code-coverage)"{-coverage,--code-coverage}"[Indicates that test coverage information should be collected and reported in the output (https://jestjs.io/docs/en/cli#coverage).]" \
+          "(--color -colors)"{--color,-colors}"[Forces test results output color highlighting (even if stdout is not a TTY). Set to false if you would like to have no colors (https://jestjs.io/docs/en/cli#colors).]" \
+          "--config[The path to a Jest config file specifying how to find and execute tests. If no rootDir is set in the config, the directory containing the config file is assumed to be the rootDir for the project. This can also be a JSON-encoded value which Jest will use as configuration.]:file:_files" \
+          "(-c --configuration)"{-c=,--configuration=}"[A named builder configuration.]:configuration:" \
+          "--coverageDirectory[The directory where Jest should output its coverage files.]:path:_path_files -/" \
+          "--coverageReporters[A list of reporter names that Jest uses when writing coverage reports. Any istanbul reporter.]:reporter:" \
+          "--detectOpenHandles[Attempt to collect and print open handles preventing Jest from exiting cleanly (https://jestjs.io/docs/en/cli.html#--detectopenhandles).]" \
+          "--findRelatedTests[Find and run the tests that cover a comma separated list of source files that were passed in as arguments (https://jestjs.io/docs/en/cli#findrelatedtests-spaceseparatedlistofsourcefiles).]:files:_files" \
+          "--jestConfig[The path of the Jest configuration. (https://jestjs.io/docs/en/configuration).]:file:_files" \
+          "--json[Prints the test results in JSON. This mode will send all other test output and user messages to stderr (https://jestjs.io/docs/en/cli#json).]" \
+          "(-w --max-workers)"{-w=,--max-workers=}"[Specifies the maximum number of workers the worker-pool will spawn for running tests. This defaults to the number of the cores available on your machine. Useful for CI. (its usually best not to override this default) (https://jestjs.io/docs/en/cli#maxworkers-num).]:count:" \
+          "(-o --only-changed)"{-o,--only-changed}"[Attempts to identify which tests to run based on which files have changed in the current repository. Only works if you're running tests in a git or hg repository at the moment (https://jestjs.io/docs/en/cli#onlychanged).]" \
+          "--outputFile[Write test results to a file when the --json option is also specified (https://jestjs.io/docs/en/cli#outputfile-filename).]:file:_files" \
+          "--passWithNoTests[Will not fail if no tests are found (for example while using --testPathPattern.) (https://jestjs.io/docs/en/cli#passwithnotests).]" \
+          "--prod[When true, sets the build configuration to the production target, shorthand for \"--configuration=production\".]" \
+          "--reporters[Run tests with specified reporters. Reporter options are not available via CLI. Example with multiple reporters: jest --reporters=\"default\" --reporters=\"jest-junit\" (https://jestjs.io/docs/en/cli#reporters).]:reporters:" \
+          "(-i --run-in-band)"{-i,--run-in-band}"[Run all tests serially in the current process (rather than creating a worker-pool of child processes that run tests). This is sometimes useful for debugging, but such use cases are pretty rare. Useful for CI. (https://jestjs.io/docs/en/cli#runinband).]" \
+          "--showConfig[Print your Jest config and then exits (https://jestjs.io/docs/en/cli#--showconfig).]" \
+          "--silent[Prevent tests from printing messages through the console (https://jestjs.io/docs/en/cli#silent).]" \
+          "--testFile[The name of the file to test.]:filename:" \
+          "--testLocationInResults[Adds a location field to test results. Used to report location of a test in a reporter. { \"column\": 4, \"line\": 5 } (https://jestjs.io/docs/en/cli#testlocationinresults).]" \
+          "(-t --testNamePattern)"{-t=,--test-name-pattern=}"[Run only tests with a name that matches the regex pattern (https://jestjs.io/docs/en/cli#testnamepattern-regex).]:pattern:" \
+          "--testPathPattern[An array of regexp pattern strings that is matched against all tests paths before executing the test (https://jestjs.io/docs/en/cli#testpathpattern-regex).]:path_pattern:" \
+          "--testResultsProcessor[Node module that implements a custom results processor (https://jestjs.io/docs/en/configuration#testresultsprocessor-string).]:processor:" \
+          "(-u --update-snapshot)"{-u,--update-snapshot}"[Use this flag to re-record snapshots. Can be used together with a test suite pattern or with --testNamePattern to re-record snapshot for test matching the pattern (https://jestjs.io/docs/en/cli#updatesnapshot).]" \
+          "--useStderr[Divert all output to stderr.]" \
+          "--verbose[Display individual test results with the test suite hierarchy. (https://jestjs.io/docs/en/cli#verbose).]" \
+          "--watch[Watch files for changes and rerun tests related to changed files. If you want to re-run all tests when a file has changed, use the --watchAll option (https://jestjs.io/docs/en/cli#watch).]" \
+          "--watchAll[Watch files for changes and rerun all tests when something changes. If you want to re-run only the tests that depend on the changed files, use the --watch option. (https://jestjs.io/docs/en/cli#watchall)]" \
+          "--skipNxCache[Rerun the tasks even when the results are available in the cache.]" \
+          ":project:_list_projects" && ret=0
+      fi
+    ;;
+    (*)
+      # Generic handler for any unrecognized commands - try dynamic parsing
+      local command_name="${words[1]}"
+      local -a dynamic_opts=($(_nx_get_command_options "$command_name"))
+      if [[ ${#dynamic_opts} -gt 0 ]]; then
+        _arguments $(_nx_arguments) \
+          $opts_help \
+          $dynamic_opts && ret=0
+      else
+        # Fallback to basic help and common options if command not recognized
+        _arguments $(_nx_arguments) \
+          $opts_help \
+          "--version[Show version number.]" \
+          "--verbose[Print additional error stack trace on failure.]" && ret=0
+      fi
     ;;
   esac
 
