@@ -69,6 +69,29 @@ Then source it in your `.zshrc`:
 source ~/.nx-completion/nx-completion.plugin.zsh
 ```
 
+## Cache Management
+
+When reinstalling or updating the nx-completion plugin, you may need to flush the zsh completion cache to ensure you're using the latest version.
+
+### Quick Cache Clear
+
+The simplest way to clear the zsh completion cache:
+
+```shell
+# Clear zsh completion cache and rebuild
+rm -rf ~/.zcompdump* && autoload -U compinit && compinit -D
+```
+
+### Using the Clear Cache Script
+
+Run the included script for automated cache clearing:
+
+```shell
+# Make executable and run
+chmod +x clear-cache.zsh
+./clear-cache.zsh
+```
+
 ## License
 
 This project is MIT licensed.
