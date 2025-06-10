@@ -6,22 +6,23 @@
 
 ## Features
 
-- **Dynamic command parsing**: Automatically discovers commands from `nx --help` output
-- **Intelligent caching**: Uses Nx's built-in project graph cache when available
-- **Auto-updating completions**: Commands and options stay current with your Nx version
-- **Workspace executor integration**: Dynamically extracts completion options from project executors
-- Commands and arguments autocompletion
-- Projects, targets, and generators autocompletion
-- Support different workspace versions
-- **Performance optimized**: Caches parsed commands and reuses project graph data
+- ✅ **Dynamic command & option parsing**
+  Automatically discovers and updates completions from `nx --help` output
 
-## Performance Improvements
+- 🚀 **Intelligent caching = blazing fast completions**
+  Leverages Nx’s project graph cache and memoized command parsing
 
-- **Project graph caching**: Checks for `.nx/workspace-data/project-graph.json` before calling `nx graph`
-- **Dynamic command discovery**: Parses `nx --help` instead of maintaining static command lists
-- **Workspace-aware options**: Extracts options from project executors for enhanced completion
-- **Zsh completion caching**: Uses zsh's built-in caching system for better performance
-- **All commands dynamic**: Every command now uses dynamic parsing for maximum flexibility
+- 🧠 **Workspace-aware, always up-to-date**
+  Auto-syncs completions with your Nx version, project executors, and custom generators
+
+- 🧩 **Deep integration with Nx executors**
+  Extracts and completes custom workspace commands, targets, and options
+
+- ✨ **Smart autocompletion**
+  Supports arguments, flags, projects, targets, and generators—all in context
+
+- 📦 **Version flexibility**
+  Works seamlessly across different Nx workspace versions
 
 ## Install
 
@@ -102,7 +103,7 @@ This repository includes a comprehensive test environment in the `test/` directo
 test/
 ├── .nx/workspace-data/project-graph.json  # Main test graph (.nodes structure)
 ├── nx.json                                # Nx workspace config
-├── project-graph-nested.json              # Test graph (.graph.nodes structure) 
+├── project-graph-nested.json              # Test graph (.graph.nodes structure)
 ├── test-completion.zsh                    # Automated test script
 ├── demo-completion.zsh                    # Interactive demo script
 └── README.md                              # Test environment docs
