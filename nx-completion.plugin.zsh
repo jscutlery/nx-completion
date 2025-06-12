@@ -39,6 +39,16 @@ _nx_caching_policy() {
 # Global configuration for maximum number of completion results
 typeset -g NX_MAX_RESULTS=30
 
+# Set up zsh completion styles for nx to ensure menu completion
+zstyle ':completion:*:*:nx:*' menu yes select
+zstyle ':completion:*:*:nx:*' select-prompt '%SScrolling active: current selection at %p%s'
+zstyle ':completion:*:*:nx:*' list-prompt '%SAt %p: Hit TAB for more, or the character to insert%s'
+zstyle ':completion:*:*:nx:*' group-name ''
+zstyle ':completion:*:*:nx:*' completer _complete
+zstyle ':completion:*:*:nx:*' matcher-list 'm:{a-zA-Z}={A-Za-z}' 'r:|[._-]=* r:|=*' 'l:|=* r:|=*'
+zstyle ':completion:*:*:nx:*' accept-exact-dirs true
+zstyle ':completion:*:*:nx:*' list-separator --
+
 # Check if at least one of w_defs are present in working dir.
 _check_workspace_def() {
   integer ret=1
@@ -114,97 +124,152 @@ _get_nodes_path() {
   fi
 }
 
-# Collect workspace projects
+# Unified function to get workspace items (projects or targets)
+_get_workspace_items() {
+  local item_type="$1" # "projects" or "targets" or "targets_full"
+  integer ret=1
+  local cache_key="nx_workspace_${item_type}"
+  local cache_policy
+
+  # Set up cache policy
+  zstyle -s ":completion:${curcontext}:" cache-policy cache_policy
+  if [[ -z "$cache_policy" ]]; then
+    zstyle ":completion:${curcontext}:" cache-policy _nx_caching_policy
+  fi
+
+  # Check if we have cached items and they're still valid
+  if ( [[ ${(P)+cache_key} -eq 1 ]] && ! _cache_invalid "$cache_key" ); then
+    echo "${(P)cache_key[@]}"
+    return 0
+  fi
+
+  local def=$(_workspace_def)
+  local nodes_path=$(_get_nodes_path "$def")
+  local -a items=()
+
+  case "$item_type" in
+    projects)
+      if [[ "$nodes_path" == ".graph.nodes" ]]; then
+        items=($(<$def | jq -r '.graph.nodes[] | .name'))
+      else
+        items=($(<$def | jq -r '.nodes[] | .name'))
+      fi
+      ;;
+    targets)
+      if [[ "$nodes_path" == ".graph.nodes" ]]; then
+        items=($(jq -r '[.graph.nodes[] | .data.targets | keys[]] | unique[]' "$def"))
+      else
+        items=($(jq -r '[.nodes[] | .data.targets | keys[]] | unique[]' "$def"))
+      fi
+      # Limit results for better performance
+      if [[ ${#items} -gt $NX_MAX_RESULTS ]]; then
+        items=(${items[1,$NX_MAX_RESULTS]})
+      fi
+      ;;
+    targets_full)
+      if [[ "$nodes_path" == ".graph.nodes" ]]; then
+        items=($(<"$def" | jq -r '.graph.nodes[] | .name as $project | .data.targets | keys[] | $project + ":" + .' 2>/dev/null))
+      else
+        items=($(<"$def" | jq -r '.nodes[] | .name as $project | .data.targets | keys[] | $project + ":" + .' 2>/dev/null))
+      fi
+      ;;
+  esac
+
+  # Cache the results if we got any
+  if [[ ${#items} -gt 0 ]]; then
+    eval "${cache_key}=(\"\${items[@]}\")"
+    _store_cache "$cache_key" "${cache_key}"
+    echo "${items[@]}" && ret=0
+  fi
+
+  return ret
+}
+
+# New function to get workspace items into an array variable (avoids echo/word splitting issues)
+_get_workspace_items_array() {
+  local item_type="$1" # "projects" or "targets" or "targets_full"
+  local result_var="$2" # name of the result array variable
+  integer ret=1
+  local cache_key="nx_workspace_${item_type}"
+  local cache_policy
+
+  # Set up cache policy
+  zstyle -s ":completion:${curcontext}:" cache-policy cache_policy
+  if [[ -z "$cache_policy" ]]; then
+    zstyle ":completion:${curcontext}:" cache-policy _nx_caching_policy
+  fi
+
+  # Check if we have cached items and they're still valid
+  if ( [[ ${(P)+cache_key} -eq 1 ]] && ! _cache_invalid "$cache_key" ); then
+    eval "${result_var}=(\"\${(P@)cache_key}\")"
+    return 0
+  fi
+
+  local def=$(_workspace_def)
+  local nodes_path=$(_get_nodes_path "$def")
+  local -a items=()
+
+  case "$item_type" in
+    projects)
+      if [[ "$nodes_path" == ".graph.nodes" ]]; then
+        items=($(<$def | jq -r '.graph.nodes[] | .name'))
+      else
+        items=($(<$def | jq -r '.nodes[] | .name'))
+      fi
+      ;;
+    targets)
+      if [[ "$nodes_path" == ".graph.nodes" ]]; then
+        items=($(jq -r '[.graph.nodes[] | .data.targets | keys[]] | unique[]' "$def"))
+      else
+        items=($(jq -r '[.nodes[] | .data.targets | keys[]] | unique[]' "$def"))
+      fi
+      # Limit results for better performance
+      if [[ ${#items} -gt $NX_MAX_RESULTS ]]; then
+        items=(${items[1,$NX_MAX_RESULTS]})
+      fi
+      ;;
+    targets_full)
+      if [[ "$nodes_path" == ".graph.nodes" ]]; then
+        items=($(<"$def" | jq -r '.graph.nodes[] | .name as $project | .data.targets | keys[] | $project + ":" + .' 2>/dev/null))
+      else
+        items=($(<"$def" | jq -r '.nodes[] | .name as $project | .data.targets | keys[] | $project + ":" + .' 2>/dev/null))
+      fi
+      ;;
+  esac
+
+  # Cache the results if we got any
+  if [[ ${#items} -gt 0 ]]; then
+    eval "${cache_key}=(\"\${items[@]}\")"
+    _store_cache "$cache_key" "${cache_key}"
+    eval "${result_var}=(\"\${items[@]}\")"
+    ret=0
+  fi
+
+  return ret
+}
+
+# Backward compatibility aliases
 _workspace_projects() {
-  integer ret=1
-  local cache_key="nx_workspace_projects"
-  local cache_policy
-
-  # Set up cache policy
-  zstyle -s ":completion:${curcontext}:" cache-policy cache_policy
-  if [[ -z "$cache_policy" ]]; then
-    zstyle ":completion:${curcontext}:" cache-policy _nx_caching_policy
+  local -a projects
+  if _get_workspace_items_array "projects" projects; then
+    echo "${projects[@]}"
   fi
-
-  # Check if we have cached projects and they're still valid
-  if ( [[ ${(P)+cache_key} -eq 1 ]] && ! _cache_invalid "$cache_key" ); then
-    echo "${(P)cache_key[@]}"
-    return 0
-  fi
-
-  local def=$(_workspace_def)
-  local nodes_path=$(_get_nodes_path "$def")
-  local -a projects=()
-
-  if [[ "$nodes_path" == ".graph.nodes" ]]; then
-    projects=($(<$def | jq -r '.graph.nodes[] | .name'))
-  else
-    projects=($(<$def | jq -r '.nodes[] | .name'))
-  fi
-
-  # Cache the results if we got any
-  if [[ ${#projects} -gt 0 ]]; then
-    eval "${cache_key}=(\"\${projects[@]}\")"
-    _store_cache "$cache_key" "${cache_key}"
-    echo "${projects[@]}" && ret=0
-  fi
-
-  return ret
 }
 
-# Collect workspace targets
 _nx_workspace_targets() {
-  integer ret=1
-  local cache_key="nx_workspace_targets"
-  local cache_policy
-
-  # Set up cache policy
-  zstyle -s ":completion:${curcontext}:" cache-policy cache_policy
-  if [[ -z "$cache_policy" ]]; then
-    zstyle ":completion:${curcontext}:" cache-policy _nx_caching_policy
+  local -a targets
+  if _get_workspace_items_array "targets" targets; then
+    echo "${targets[@]}"
   fi
-
-  # Check if we have cached targets and they're still valid
-  if ( [[ ${(P)+cache_key} -eq 1 ]] && ! _cache_invalid "$cache_key" ); then
-    echo "${(P)cache_key[@]}"
-    return 0
-  fi
-
-  local def=$(_workspace_def)
-  local nodes_path=$(_get_nodes_path "$def")
-  local -a all_targets=()
-
-  if [[ "$nodes_path" == ".graph.nodes" ]]; then
-    all_targets=($(jq -r '[.graph.nodes[] | .data.targets | keys[]] | unique[]' "$def"))
-  else
-    all_targets=($(jq -r '[.nodes[] | .data.targets | keys[]] | unique[]' "$def"))
-  fi
-
-  # Limit results for better performance
-  local -a limited_targets=()
-  if [[ ${#all_targets} -gt $NX_MAX_RESULTS ]]; then
-    limited_targets=(${all_targets[1,$NX_MAX_RESULTS]})
-  else
-    limited_targets=($all_targets[@])
-  fi
-
-  # Cache the results if we got any
-  if [[ ${#limited_targets} -gt 0 ]]; then
-    eval "${cache_key}=(\"\${limited_targets[@]}\")"
-    _store_cache "$cache_key" "${cache_key}"
-    echo "${limited_targets[@]}" && ret=0
-  fi
-
-  return ret
 }
 
-
-# List projects within workspace definition file,
-# uses jq dependency to parse and manipulate JSON file
-# instead of using a dirty grep or sed.
-_list_projects() {
+# Unified completion function for workspace items
+_complete_workspace_items() {
+  local item_type="$1" # "projects" or "targets"
   [[ $PREFIX = -* ]] && return 1
   integer ret=1
+
+  local cache_key="nx_list_${item_type}"
   local cache_policy
 
   # Set up cache policy
@@ -213,117 +278,98 @@ _list_projects() {
     zstyle ":completion:${curcontext}:" cache-policy _nx_caching_policy
   fi
 
-  local def=$(_workspace_def)
-  local -a projects=($(_workspace_projects))
+  local -a all_items=()
+  local -a filtered_items=()
 
-  # Limit results for better autocompletion performance
-  if [[ ${#projects} -gt $NX_MAX_RESULTS ]]; then
-    # If we have a prefix, filter projects that match
+  if [[ "$item_type" == "projects" ]]; then
+    _get_workspace_items_array "projects" all_items
+  else
+    # For targets, we need project:target format for _list_targets
+    if ( [[ ${(P)+cache_key} -eq 1 ]] && ! _cache_invalid "$cache_key" ); then
+      local -a cached_targets=("${(P@)cache_key}")
+      # Filter cached results based on PREFIX if provided
+      if [[ -n "$PREFIX" ]]; then
+        for target in $cached_targets; do
+          if [[ "$target" == ${PREFIX}* ]]; then
+            filtered_items+=("$target")
+            if [[ ${#filtered_items} -ge $NX_MAX_RESULTS ]]; then
+              break
+            fi
+          fi
+        done
+      else
+        # Take first N targets if no prefix
+        filtered_items=(${cached_targets[1,$NX_MAX_RESULTS]})
+      fi
+
+      # Use compadd for better menu control when we have multiple items
+      if [[ ${#filtered_items} -gt 0 ]]; then
+        local expl
+        _description project-targets expl 'Project targets'
+        compadd "$expl[@]" -a filtered_items && ret=0
+        return ret
+      fi
+    fi
+
+    # Get full targets (project:target format)
+    _get_workspace_items_array "targets_full" all_items
+
+    # Cache for future use
+    if [[ ${#all_items} -gt 0 ]]; then
+      eval "${cache_key}=(\"\${all_items[@]}\")"
+      _store_cache "$cache_key" "${cache_key}"
+    fi
+  fi
+
+  # Filter items based on PREFIX and limit results
+  if [[ ${#all_items} -gt $NX_MAX_RESULTS ]]; then
     if [[ -n "$PREFIX" ]]; then
-      local -a filtered_projects=()
-      for project in $projects; do
-        if [[ "$project" == ${PREFIX}* ]]; then
-          filtered_projects+=("$project")
-          if [[ ${#filtered_projects} -ge $NX_MAX_RESULTS ]]; then
+      for item in $all_items; do
+        if [[ "$item" == ${PREFIX}* ]]; then
+          filtered_items+=("$item")
+          if [[ ${#filtered_items} -ge $NX_MAX_RESULTS ]]; then
             break
           fi
         fi
       done
-      projects=($filtered_projects)
     else
-      # Take first N projects if no prefix
-      projects=(${projects[1,$NX_MAX_RESULTS]})
+      filtered_items=(${all_items[1,$NX_MAX_RESULTS]})
+    fi
+  else
+    if [[ -n "$PREFIX" ]]; then
+      for item in $all_items; do
+        if [[ "$item" == ${PREFIX}* ]]; then
+          filtered_items+=("$item")
+        fi
+      done
+    else
+      filtered_items=($all_items)
     fi
   fi
 
-  # Autocomplete projects as an option$ (eg: nx run demo...).
-  _describe -t nx-projects "Nx projects" projects && ret=0
+  # Use _describe for better menu completion behavior
+  if [[ ${#filtered_items} -gt 0 ]]; then
+    if [[ "$item_type" == "projects" ]]; then
+      local expl
+      _description nx-projects expl "Nx projects"
+      compadd "$expl[@]" -a filtered_items && ret=0
+    else
+      local expl
+      _description project-targets expl "Project targets"
+      compadd "$expl[@]" -a filtered_items && ret=0
+    fi
+  fi
+
   return ret
+}
+
+# Simplified completion functions
+_list_projects() {
+  _complete_workspace_items "projects"
 }
 
 _list_targets() {
-  [[ $PREFIX = -* ]] && return 1
-  integer ret=1
-  local cache_key="nx_list_targets"
-  local cache_policy
-
-  # Set up cache policy
-  zstyle -s ":completion:${curcontext}:" cache-policy cache_policy
-  if [[ -z "$cache_policy" ]]; then
-    zstyle ":completion:${curcontext}:" cache-policy _nx_caching_policy
-  fi
-
-  # Check if we have cached targets and they're still valid
-  if ( [[ ${(P)+cache_key} -eq 1 ]] && ! _cache_invalid "$cache_key" ); then
-    local -a cached_targets=("${(P)cache_key[@]}")
-
-    # Filter cached results based on PREFIX if provided
-    local -a filtered_targets=()
-    if [[ -n "$PREFIX" ]]; then
-      for target in $cached_targets; do
-        if [[ "$target" == ${PREFIX}* ]]; then
-          filtered_targets+=("$target")
-          if [[ ${#filtered_targets} -ge $NX_MAX_RESULTS ]]; then
-            break
-          fi
-        fi
-      done
-    else
-      # Take first N targets if no prefix
-      filtered_targets=(${cached_targets[1,$NX_MAX_RESULTS]})
-    fi
-
-    _describe -t project-targets 'Project targets' filtered_targets && ret=0
-    return ret
-  fi
-
-  local def=$(_workspace_def)
-
-  # Check if workspace definition file exists
-  if [[ ! -f "$def" ]]; then
-    # Return gracefully without causing an error
-    return 1
-  fi
-
-  local nodes_path=$(_get_nodes_path "$def")
-  local -a all_targets=()
-
-  if [[ "$nodes_path" == ".graph.nodes" ]]; then
-    all_targets=($(<"$def" | jq -r '.graph.nodes[] | .name as $project | .data.targets | keys[] | $project + ":" + .' 2>/dev/null))
-  else
-    all_targets=($(<"$def" | jq -r '.nodes[] | .name as $project | .data.targets | keys[] | $project + ":" + .' 2>/dev/null))
-  fi
-
-  # If jq failed or returned no results, return gracefully
-  if [[ ${#all_targets} -eq 0 ]]; then
-    return 1
-  fi
-
-  # Cache all targets for future use
-  if [[ ${#all_targets} -gt 0 ]]; then
-    eval "${cache_key}=(\"\${all_targets[@]}\")"
-    _store_cache "$cache_key" "${cache_key}"
-  fi
-
-  # Filter and limit results for current completion
-  local -a targets=()
-  if [[ -n "$PREFIX" ]]; then
-    # Filter targets that match the prefix
-    for target in $all_targets; do
-      if [[ "$target" == ${PREFIX}* ]]; then
-        targets+=("$target")
-        if [[ ${#targets} -ge $NX_MAX_RESULTS ]]; then
-          break
-        fi
-      fi
-    done
-  else
-    # Take first N targets if no prefix
-    targets=(${all_targets[1,$NX_MAX_RESULTS]})
-  fi
-
-  _describe -t project-targets 'Project targets' targets && ret=0
-  return ret
+  _complete_workspace_items "targets"
 }
 
 _list_generators() {
@@ -935,18 +981,19 @@ _nx_parse_command_options() {
 _safe_list_targets() {
   # Try to call _list_targets with error handling
   if ! _list_targets 2>/dev/null; then
-    # If _list_targets fails, provide a basic fallback
+    # If _list_targets fails, try to get basic targets using unified function
     local -a fallback_targets=()
-    # Try to get some basic targets from the workspace if possible
-    local def=$(_workspace_def 2>/dev/null)
-    if [[ -f "$def" ]]; then
-      # Extract just the target names without project prefixes as a fallback
-      local -a simple_targets=($(jq -r '.nodes[]? | .data.targets | keys[]?' "$def" 2>/dev/null | sort -u | head -10))
-      if [[ ${#simple_targets} -gt 0 ]]; then
-        _describe -t targets 'Available targets' simple_targets
-        return 0
+
+    # Try to use the unified function for simple target names
+    if fallback_targets=($(_get_workspace_items "targets" 2>/dev/null)) && [[ ${#fallback_targets} -gt 0 ]]; then
+      # Limit results for fallback
+      if [[ ${#fallback_targets} -gt 10 ]]; then
+        fallback_targets=(${fallback_targets[1,10]})
       fi
+      _describe -t targets 'Available targets' fallback_targets
+      return 0
     fi
+
     # Ultimate fallback - return common target names
     local -a common_targets=("build" "test" "lint" "serve" "e2e")
     _describe -t targets 'Common targets' common_targets
@@ -957,18 +1004,19 @@ _safe_list_targets() {
 _safe_list_projects() {
   # Try to call _list_projects with error handling
   if ! _list_projects 2>/dev/null; then
-    # If _list_projects fails, provide a basic fallback
+    # If _list_projects fails, try to get basic projects using unified function
     local -a fallback_projects=()
-    # Try to get some basic project names from the workspace if possible
-    local def=$(_workspace_def 2>/dev/null)
-    if [[ -f "$def" ]]; then
-      # Extract just the project names as a fallback
-      local -a simple_projects=($(jq -r '.nodes[]? | .name' "$def" 2>/dev/null | head -10))
-      if [[ ${#simple_projects} -gt 0 ]]; then
-        _describe -t projects 'Available projects' simple_projects
-        return 0
+
+    # Try to use the unified function for project names
+    if fallback_projects=($(_get_workspace_items "projects" 2>/dev/null)) && [[ ${#fallback_projects} -gt 0 ]]; then
+      # Limit results for fallback
+      if [[ ${#fallback_projects} -gt 10 ]]; then
+        fallback_projects=(${fallback_projects[1,10]})
       fi
+      _describe -t projects 'Available projects' fallback_projects
+      return 0
     fi
+
     # Ultimate fallback - return empty completion
     return 1
   fi

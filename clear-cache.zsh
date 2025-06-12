@@ -3,11 +3,47 @@
 #
 # This script clears ALL caches created by the nx-completion plugin
 # Run this after updating the plugin or when experiencing cache issues
+#
+# IMPORTANT: This script runs in its own shell and cannot clear variables 
+# from your current shell. For clearing variables in your current shell:
+#   source clear-cache-source.zsh
+#
+# This script will clear:
+# - Temporary files
+# - zsh completion dumps
+# - Rebuild completion system
 
 set -e
 
 echo "🧹 nx-completion Complete Cache Clear"
 echo "====================================="
+
+echo ""
+echo "⚠️  IMPORTANT NOTE:"
+echo "   This script runs in its own shell and cannot clear cache variables"
+echo "   from your current shell where nx completion is active."
+echo ""
+echo "   To clear cache variables from your CURRENT shell, use:"
+echo "   source clear-cache-source.zsh"
+echo ""
+echo "   This script will clear temporary files and rebuild completion system."
+echo ""
+
+# First, let's see what nx-related variables currently exist
+echo ""
+echo "🔍 Checking for existing nx-related variables..."
+local found_vars=0
+for var in ${(k)parameters}; do
+  if [[ "$var" =~ ^nx_ || "$var" =~ ^_nx_ || "$var" == "tmp_cached_def" ]]; then
+    echo "    📦 Found: $var"
+    ((found_vars++))
+  fi
+done
+if [[ $found_vars -eq 0 ]]; then
+  echo "    ℹ️  No nx-related variables found in current shell"
+else
+  echo "    📊 Total found: $found_vars variables"
+fi
 
 # Function to safely unset variables
 safe_unset() {
@@ -15,6 +51,8 @@ safe_unset() {
   if [[ ${(P)+var_name} -eq 1 ]]; then
     unset "$var_name"
     echo "    ✓ Cleared variable: $var_name"
+  else
+    echo "    ℹ️  Variable not found: $var_name"
   fi
 }
 
@@ -42,6 +80,7 @@ echo "🗑️  Clearing nx-completion cache variables..."
 # Main workspace cache variables
 safe_unset "nx_workspace_projects"
 safe_unset "nx_workspace_targets"
+safe_unset "nx_workspace_targets_full"
 
 # Completion cache variables
 safe_unset "nx_list_projects"
@@ -59,19 +98,35 @@ done
 
 # Executor-specific cache variables (these have dynamic names)
 # Clear any variables matching the pattern nx_executor_options_*
+echo "    🔍 Checking for executor-specific cache variables..."
+local executor_count=0
 for var in ${(k)parameters}; do
   if [[ "$var" =~ ^nx_executor_options_ ]]; then
     safe_unset "$var"
+    ((executor_count++))
   fi
 done
+if [[ $executor_count -eq 0 ]]; then
+  echo "    ℹ️  No executor-specific cache variables found"
+else
+  echo "    📊 Found and cleared $executor_count executor-specific variables"
+fi
 
 # Target executor cache variables (these have dynamic names)
 # Clear any variables matching the pattern nx_target_executor_*
+echo "    🔍 Checking for target-executor cache variables..."
+local target_executor_count=0
 for var in ${(k)parameters}; do
   if [[ "$var" =~ ^nx_target_executor_ ]]; then
     safe_unset "$var"
+    ((target_executor_count++))
   fi
 done
+if [[ $target_executor_count -eq 0 ]]; then
+  echo "    ℹ️  No target-executor cache variables found"
+else
+  echo "    📊 Found and cleared $target_executor_count target-executor variables"
+fi
 
 # Subcommands cache
 safe_unset "_nx_subcommands"
