@@ -24,7 +24,7 @@ _nx_arguments() {
   if [[ "$command_name" == "generate" || "$command_name" == "g" ]]; then
     return
   fi
-  
+
   if zstyle -t ":completion:${curcontext}:" option-stacking; then
     print -- -s
   fi
@@ -79,9 +79,20 @@ _check_workspace_def() {
 # Assumes _check_workspace_def get called before.
 _workspace_def() {
   integer ret=1
-  if [[ -f $tmp_cached_def ]]; then
-    echo $tmp_cached_def && ret=0
+
+  # First check if tmp_cached_def is set and file exists
+  if [[ -n "$tmp_cached_def" && -f "$tmp_cached_def" ]]; then
+    echo "$tmp_cached_def" && ret=0
+    return ret
   fi
+
+  # Fallback: re-run workspace detection if tmp_cached_def is not set
+  if _check_workspace_def; then
+    if [[ -n "$tmp_cached_def" && -f "$tmp_cached_def" ]]; then
+      echo "$tmp_cached_def" && ret=0
+    fi
+  fi
+
   return ret
 }
 
@@ -267,13 +278,25 @@ _list_targets() {
   fi
 
   local def=$(_workspace_def)
+
+  # Check if workspace definition file exists
+  if [[ ! -f "$def" ]]; then
+    # Return gracefully without causing an error
+    return 1
+  fi
+
   local nodes_path=$(_get_nodes_path "$def")
   local -a all_targets=()
 
   if [[ "$nodes_path" == ".graph.nodes" ]]; then
-    all_targets=($(<$def | jq -r '.graph.nodes[] | { name: .name, target: (.data.targets | keys[] | if test(":") then . | tojson | gsub(":"; "\\:") else . end ) } | .name + "\\:" + .target'))
+    all_targets=($(<"$def" | jq -r '.graph.nodes[] | { name: .name, target: (.data.targets | keys[] | if test(":") then . | tojson | gsub(":"; "\\:") else . end ) } | .name + "\\:" + .target' 2>/dev/null))
   else
-    all_targets=($(<$def | jq -r '.nodes[] | { name: .name, target: (.data.targets | keys[] | if test(":") then . | tojson | gsub(":"; "\\:") else . end ) } | .name + "\\:" + .target'))
+    all_targets=($(<"$def" | jq -r '.nodes[] | { name: .name, target: (.data.targets | keys[] | if test(":") then . | tojson | gsub(":"; "\\:") else . end ) } | .name + "\\:" + .target' 2>/dev/null))
+  fi
+
+  # If jq failed or returned no results, return gracefully
+  if [[ ${#all_targets} -eq 0 ]]; then
+    return 1
   fi
 
   # Cache all targets for future use
@@ -341,11 +364,25 @@ _list_generators() {
   local -a generators=()
   local -a plugins=()
 
-  plugins=(${(f)"$(nx list | awk '/Installed/,/Also available:/' | grep generators | awk -F ' ' '{print $1}')"})
+  # Try to get plugins list with error handling
+  local plugins_output=$(nx list 2>/dev/null)
+  if [[ $? -eq 0 && -n "$plugins_output" ]]; then
+    plugins=(${(f)"$(echo "$plugins_output" | awk '/Installed/,/Also available:/' | grep generators | awk -F ' ' '{print $1}')"})
+  fi
+
+  # If no plugins found, return gracefully
+  if [[ ${#plugins} -eq 0 ]]; then
+    return 1
+  fi
 
   for p in $plugins; do
     local -a pluginGenerators=()
-    pluginGenerators=(${(f)"$(nx list $p | awk '/GENERATORS/,/EXECUTORS/' | grep ' : ' | awk -F " : " '{ print $1}' | awk '{$1=$1};1')"})
+    # Try to get generators for this plugin with error handling
+    local generators_output=$(nx list "$p" 2>/dev/null)
+    if [[ $? -eq 0 && -n "$generators_output" ]]; then
+      pluginGenerators=(${(f)"$(echo "$generators_output" | awk '/GENERATORS/,/EXECUTORS/' | grep ' : ' | awk -F " : " '{ print $1}' | awk '{$1=$1};1')"})
+    fi
+
     for g in $pluginGenerators; do
       # Properly escape colon for zsh completion
       local escaped_generator="$p\\:$g"
@@ -894,6 +931,49 @@ _nx_parse_command_options() {
   echo "${parsed_options[@]}"
 }
 
+# Safe wrapper for _list_targets that prevents terminal crashes
+_safe_list_targets() {
+  # Try to call _list_targets with error handling
+  if ! _list_targets 2>/dev/null; then
+    # If _list_targets fails, provide a basic fallback
+    local -a fallback_targets=()
+    # Try to get some basic targets from the workspace if possible
+    local def=$(_workspace_def 2>/dev/null)
+    if [[ -f "$def" ]]; then
+      # Extract just the target names without project prefixes as a fallback
+      local -a simple_targets=($(jq -r '.nodes[]? | .data.targets | keys[]?' "$def" 2>/dev/null | sort -u | head -10))
+      if [[ ${#simple_targets} -gt 0 ]]; then
+        _describe -t targets 'Available targets' simple_targets
+        return 0
+      fi
+    fi
+    # Ultimate fallback - return common target names
+    local -a common_targets=("build" "test" "lint" "serve" "e2e")
+    _describe -t targets 'Common targets' common_targets
+  fi
+}
+
+# Safe wrapper for _list_projects that prevents terminal crashes
+_safe_list_projects() {
+  # Try to call _list_projects with error handling
+  if ! _list_projects 2>/dev/null; then
+    # If _list_projects fails, provide a basic fallback
+    local -a fallback_projects=()
+    # Try to get some basic project names from the workspace if possible
+    local def=$(_workspace_def 2>/dev/null)
+    if [[ -f "$def" ]]; then
+      # Extract just the project names as a fallback
+      local -a simple_projects=($(jq -r '.nodes[]? | .name' "$def" 2>/dev/null | head -10))
+      if [[ ${#simple_projects} -gt 0 ]]; then
+        _describe -t projects 'Available projects' simple_projects
+        return 0
+      fi
+    fi
+    # Ultimate fallback - return empty completion
+    return 1
+  fi
+}
+
 _nx_command() {
   integer ret=1
   local -a _command_args opts_help opts_affected
@@ -1241,43 +1321,49 @@ _nx_command() {
 }
 
 _nx_completion() {
-  # In case no workspace found in current workind dir,
-  # suggest creating a new workspace.
-  _check_workspace_def
-  if [[ $? -eq 1 ]] ; then
-    local bold=$(tput bold)
-    local normal=$(tput sgr0)
-    _message -r "The current directory isn't part of an Nx workspace."
-    _message -r ""
-    _message -r "Create a workspace using npm init:"
-    _message -r "${bold}npm init nx-workspace${normal}"
-    _message -r "Create a workspace using yarn:"
-    _message -r "${bold}yarn create nx-workspace${normal}"
-    _message -r "Create a workspace using npx:"
-    _message -r "${bold}npx create-nx-workspace${normal}" && return 0
-  fi
+  # Add top-level error handling to prevent terminal crashes
+  {
+    # In case no workspace found in current workind dir,
+    # suggest creating a new workspace.
+    _check_workspace_def
+    if [[ $? -eq 1 ]] ; then
+      local bold=$(tput bold 2>/dev/null || echo "")
+      local normal=$(tput sgr0 2>/dev/null || echo "")
+      _message -r "The current directory isn't part of an Nx workspace."
+      _message -r ""
+      _message -r "Create a workspace using npm init:"
+      _message -r "${bold}npm init nx-workspace${normal}"
+      _message -r "Create a workspace using yarn:"
+      _message -r "${bold}yarn create nx-workspace${normal}"
+      _message -r "Create a workspace using npx:"
+      _message -r "${bold}npx create-nx-workspace${normal}" && return 0
+    fi
 
-  integer ret=1
-  local curcontext="$curcontext" state _command_args opts_help
+    integer ret=1
+    local curcontext="$curcontext" state _command_args opts_help
 
-  opts_help=("--help[Shows a help message for this command in the console]")
+    opts_help=("--help[Shows a help message for this command in the console]")
 
-  _arguments $(_nx_arguments) \
-    $opts_help \
-    "--version[Show version number]" \
-    ": :->root_command" \
-    "*:: :->command" && ret=0
+    _arguments $(_nx_arguments) \
+      $opts_help \
+      "--version[Show version number]" \
+      ": :->root_command" \
+      "*:: :->command" && ret=0
 
-  case $state in
-    (root_command)
-      _nx_commands && ret=0
-    ;;
-    (command)
-      curcontext=${curcontext%:*:*}:nx-$words[1]:
-      _nx_command && ret=0
-    ;;
-  esac
+    case $state in
+      (root_command)
+        _nx_commands && ret=0
+      ;;
+      (command)
+        curcontext=${curcontext%:*:*}:nx-$words[1]:
+        _nx_command && ret=0
+      ;;
+    esac
 
-  return ret
+    return ret
+  } 2>/dev/null || {
+    # If anything fails catastrophically, provide a minimal fallback
+    return 1
+  }
 }
 compdef _nx_completion nx
