@@ -175,9 +175,9 @@ _nx_workspace_targets() {
   local -a all_targets=()
 
   if [[ "$nodes_path" == ".graph.nodes" ]]; then
-    all_targets=($(jq -r '[.graph.nodes[] | .data.targets | keys[]] | unique[] | if test(":") then . | gsub(":"; "\\:") else . end' "$def"))
+    all_targets=($(jq -r '[.graph.nodes[] | .data.targets | keys[]] | unique[]' "$def"))
   else
-    all_targets=($(jq -r '[.nodes[] | .data.targets | keys[]] | unique[] | if test(":") then . | gsub(":"; "\\:") else . end' "$def"))
+    all_targets=($(jq -r '[.nodes[] | .data.targets | keys[]] | unique[]' "$def"))
   fi
 
   # Limit results for better performance
@@ -289,9 +289,9 @@ _list_targets() {
   local -a all_targets=()
 
   if [[ "$nodes_path" == ".graph.nodes" ]]; then
-    all_targets=($(<"$def" | jq -r '.graph.nodes[] | { name: .name, target: (.data.targets | keys[] | if test(":") then . | tojson | gsub(":"; "\\:") else . end ) } | .name + "\\:" + .target' 2>/dev/null))
+    all_targets=($(<"$def" | jq -r '.graph.nodes[] | .name as $project | .data.targets | keys[] | $project + ":" + .' 2>/dev/null))
   else
-    all_targets=($(<"$def" | jq -r '.nodes[] | { name: .name, target: (.data.targets | keys[] | if test(":") then . | tojson | gsub(":"; "\\:") else . end ) } | .name + "\\:" + .target' 2>/dev/null))
+    all_targets=($(<"$def" | jq -r '.nodes[] | .name as $project | .data.targets | keys[] | $project + ":" + .' 2>/dev/null))
   fi
 
   # If jq failed or returned no results, return gracefully
@@ -384,9 +384,9 @@ _list_generators() {
     fi
 
     for g in $pluginGenerators; do
-      # Properly escape colon for zsh completion
-      local escaped_generator="$p\\:$g"
-      generators+=("$escaped_generator")
+      # Format generator as plugin:generator
+      local generator="$p:$g"
+      generators+=("$generator")
       # Limit total generators to prevent overwhelming the user
       if [[ ${#generators} -ge $NX_MAX_RESULTS ]]; then
         break 2
