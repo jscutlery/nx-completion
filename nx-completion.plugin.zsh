@@ -30,6 +30,9 @@ _nx_caching_policy() {
   (( $#oldp ))
 }
 
+# Global configuration for maximum number of completion results
+typeset -g NX_MAX_RESULTS=30
+
 # Check if at least one of w_defs are present in working dir.
 _check_workspace_def() {
   integer ret=1
@@ -136,7 +139,6 @@ _workspace_projects() {
 _nx_workspace_targets() {
   integer ret=1
   local cache_key="nx_workspace_targets"
-  local max_results=20
   local cache_policy
 
   # Set up cache policy
@@ -163,8 +165,8 @@ _nx_workspace_targets() {
 
   # Limit results for better performance
   local -a limited_targets=()
-  if [[ ${#all_targets} -gt $max_results ]]; then
-    limited_targets=(${all_targets[1,$max_results]})
+  if [[ ${#all_targets} -gt $NX_MAX_RESULTS ]]; then
+    limited_targets=(${all_targets[1,$NX_MAX_RESULTS]})
   else
     limited_targets=($all_targets[@])
   fi
@@ -198,15 +200,14 @@ _list_projects() {
   local -a projects=($(_workspace_projects))
 
   # Limit results for better autocompletion performance
-  local max_results=50
-  if [[ ${#projects} -gt $max_results ]]; then
+  if [[ ${#projects} -gt $NX_MAX_RESULTS ]]; then
     # If we have a prefix, filter projects that match
     if [[ -n "$PREFIX" ]]; then
       local -a filtered_projects=()
       for project in $projects; do
         if [[ "$project" == ${PREFIX}* ]]; then
           filtered_projects+=("$project")
-          if [[ ${#filtered_projects} -ge $max_results ]]; then
+          if [[ ${#filtered_projects} -ge $NX_MAX_RESULTS ]]; then
             break
           fi
         fi
@@ -214,7 +215,7 @@ _list_projects() {
       projects=($filtered_projects)
     else
       # Take first N projects if no prefix
-      projects=(${projects[1,$max_results]})
+      projects=(${projects[1,$NX_MAX_RESULTS]})
     fi
   fi
 
@@ -227,7 +228,6 @@ _list_targets() {
   [[ $PREFIX = -* ]] && return 1
   integer ret=1
   local cache_key="nx_list_targets"
-  local max_results=100
   local cache_policy
 
   # Set up cache policy
@@ -246,14 +246,14 @@ _list_targets() {
       for target in $cached_targets; do
         if [[ "$target" == ${PREFIX}* ]]; then
           filtered_targets+=("$target")
-          if [[ ${#filtered_targets} -ge $max_results ]]; then
+          if [[ ${#filtered_targets} -ge $NX_MAX_RESULTS ]]; then
             break
           fi
         fi
       done
     else
       # Take first N targets if no prefix
-      filtered_targets=(${cached_targets[1,$max_results]})
+      filtered_targets=(${cached_targets[1,$NX_MAX_RESULTS]})
     fi
 
     _describe -t project-targets 'Project targets' filtered_targets && ret=0
@@ -283,14 +283,14 @@ _list_targets() {
     for target in $all_targets; do
       if [[ "$target" == ${PREFIX}* ]]; then
         targets+=("$target")
-        if [[ ${#targets} -ge $max_results ]]; then
+        if [[ ${#targets} -ge $NX_MAX_RESULTS ]]; then
           break
         fi
       fi
     done
   else
     # Take first N targets if no prefix
-    targets=(${all_targets[1,$max_results]})
+    targets=(${all_targets[1,$NX_MAX_RESULTS]})
   fi
 
   _describe -t project-targets 'Project targets' targets && ret=0
@@ -301,7 +301,6 @@ _list_generators() {
   [[ $PREFIX = -* ]] && return 1
   integer ret=1
   local cache_key="nx_list_generators"
-  local max_results=30
   local cache_policy
 
   # Set up cache policy
@@ -320,13 +319,13 @@ _list_generators() {
       for generator in $cached_generators; do
         if [[ "$generator" == ${PREFIX}* ]]; then
           filtered_generators+=("$generator")
-          if [[ ${#filtered_generators} -ge $max_results ]]; then
+          if [[ ${#filtered_generators} -ge $NX_MAX_RESULTS ]]; then
             break
           fi
         fi
       done
     else
-      filtered_generators=(${cached_generators[1,$max_results]})
+      filtered_generators=(${cached_generators[1,$NX_MAX_RESULTS]})
     fi
 
     _describe -t nx-generators "Nx generators" filtered_generators && ret=0
@@ -344,7 +343,7 @@ _list_generators() {
     for g in $pluginGenerators; do
       generators+=("$p\:$g")
       # Limit total generators to prevent overwhelming the user
-      if [[ ${#generators} -ge $max_results ]]; then
+      if [[ ${#generators} -ge $NX_MAX_RESULTS ]]; then
         break 2
       fi
     done
@@ -362,7 +361,7 @@ _list_generators() {
     for generator in $generators; do
       if [[ "$generator" == ${PREFIX}* ]]; then
         filtered_generators+=("$generator")
-        if [[ ${#filtered_generators} -ge $max_results ]]; then
+        if [[ ${#filtered_generators} -ge $NX_MAX_RESULTS ]]; then
           break
         fi
       fi
@@ -514,7 +513,6 @@ _nx_get_executor_options() {
   local executor="$1"
   integer ret=1
   local cache_key="nx_executor_options_${executor//[^a-zA-Z0-9]/_}"
-  local max_results=25
   local cache_policy
 
   # Set up cache policy
@@ -551,8 +549,8 @@ _nx_get_executor_options() {
 
     # Limit results and cache them
     local -a limited_options=()
-    if [[ ${#all_options} -gt $max_results ]]; then
-      limited_options=(${all_options[1,$max_results]})
+    if [[ ${#all_options} -gt $NX_MAX_RESULTS ]]; then
+      limited_options=(${all_options[1,$NX_MAX_RESULTS]})
     else
       limited_options=($all_options[@])
     fi
@@ -620,7 +618,6 @@ _nx_get_target_executor() {
 _nx_get_dynamic_command_options() {
   local command="$1"
   local cache_key="nx_dynamic_${command}_options"
-  local max_results=20
   local cache_policy
 
   # Set up cache policy
@@ -648,7 +645,7 @@ _nx_get_dynamic_command_options() {
       for executor in $build_executors; do
         local -a exec_opts=($(_nx_get_executor_options "$executor"))
         dynamic_opts+=($exec_opts)
-        if [[ ${#dynamic_opts} -ge $max_results ]]; then
+        if [[ ${#dynamic_opts} -ge $NX_MAX_RESULTS ]]; then
           break
         fi
       done
@@ -660,7 +657,7 @@ _nx_get_dynamic_command_options() {
       for executor in $test_executors; do
         local -a exec_opts=($(_nx_get_executor_options "$executor"))
         dynamic_opts+=($exec_opts)
-        if [[ ${#dynamic_opts} -ge $max_results ]]; then
+        if [[ ${#dynamic_opts} -ge $NX_MAX_RESULTS ]]; then
           break
         fi
       done
@@ -672,7 +669,7 @@ _nx_get_dynamic_command_options() {
       for executor in $serve_executors; do
         local -a exec_opts=($(_nx_get_executor_options "$executor"))
         dynamic_opts+=($exec_opts)
-        if [[ ${#dynamic_opts} -ge $max_results ]]; then
+        if [[ ${#dynamic_opts} -ge $NX_MAX_RESULTS ]]; then
           break
         fi
       done
@@ -684,7 +681,7 @@ _nx_get_dynamic_command_options() {
       for executor in $lint_executors; do
         local -a exec_opts=($(_nx_get_executor_options "$executor"))
         dynamic_opts+=($exec_opts)
-        if [[ ${#dynamic_opts} -ge $max_results ]]; then
+        if [[ ${#dynamic_opts} -ge $NX_MAX_RESULTS ]]; then
           break
         fi
       done
@@ -696,7 +693,7 @@ _nx_get_dynamic_command_options() {
       for executor in $e2e_executors; do
         local -a exec_opts=($(_nx_get_executor_options "$executor"))
         dynamic_opts+=($exec_opts)
-        if [[ ${#dynamic_opts} -ge $max_results ]]; then
+        if [[ ${#dynamic_opts} -ge $NX_MAX_RESULTS ]]; then
           break
         fi
       done
@@ -706,8 +703,8 @@ _nx_get_dynamic_command_options() {
   # Remove duplicates, limit final results, and return
   dynamic_opts=(${(u)dynamic_opts[@]})
   local -a final_opts=()
-  if [[ ${#dynamic_opts} -gt $max_results ]]; then
-    final_opts=(${dynamic_opts[1,$max_results]})
+  if [[ ${#dynamic_opts} -gt $NX_MAX_RESULTS ]]; then
+    final_opts=(${dynamic_opts[1,$NX_MAX_RESULTS]})
   else
     final_opts=(${(u)dynamic_opts[@]})
   fi
