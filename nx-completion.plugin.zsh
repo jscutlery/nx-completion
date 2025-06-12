@@ -19,6 +19,12 @@ _nx_command() {
 
 # @todo: Document.
 _nx_arguments() {
+  # Don't enable option stacking for generate command as generators are positional arguments, not stackable options
+  local command_name="${words[1]}"
+  if [[ "$command_name" == "generate" || "$command_name" == "g" ]]; then
+    return
+  fi
+  
   if zstyle -t ":completion:${curcontext}:" option-stacking; then
     print -- -s
   fi
@@ -341,7 +347,9 @@ _list_generators() {
     local -a pluginGenerators=()
     pluginGenerators=(${(f)"$(nx list $p | awk '/GENERATORS/,/EXECUTORS/' | grep ' : ' | awk -F " : " '{ print $1}' | awk '{$1=$1};1')"})
     for g in $pluginGenerators; do
-      generators+=("$p\:$g")
+      # Properly escape colon for zsh completion
+      local escaped_generator="$p\\:$g"
+      generators+=("$escaped_generator")
       # Limit total generators to prevent overwhelming the user
       if [[ ${#generators} -ge $NX_MAX_RESULTS ]]; then
         break 2
