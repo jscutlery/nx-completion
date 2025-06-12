@@ -113,11 +113,22 @@ _nx_workspace_targets() {
   integer ret=1
   local def=$(_workspace_def)
   local nodes_path=$(_get_nodes_path "$def")
+  local max_results=20
+  
+  local -a all_targets
   if [[ "$nodes_path" == ".graph.nodes" ]]; then
-    jq -r '[.graph.nodes[] | .data.targets | keys[]] | unique[] | if test(":") then . | gsub(":"; "\\:") else . end' "$def" && ret=0
+    all_targets=($(jq -r '[.graph.nodes[] | .data.targets | keys[]] | unique[] | if test(":") then . | gsub(":"; "\\:") else . end' "$def"))
   else
-    jq -r '[.nodes[] | .data.targets | keys[]] | unique[] | if test(":") then . | gsub(":"; "\\:") else . end' "$def" && ret=0
+    all_targets=($(jq -r '[.nodes[] | .data.targets | keys[]] | unique[] | if test(":") then . | gsub(":"; "\\:") else . end' "$def"))
   fi
+  
+  # Limit results for better performance
+  if [[ ${#all_targets} -gt $max_results ]]; then
+    echo "${all_targets[1,$max_results]}" && ret=0
+  else
+    echo "${all_targets[@]}" && ret=0
+  fi
+  
   return ret
 }
 
@@ -130,6 +141,28 @@ _list_projects() {
   integer ret=1
   local def=$(_workspace_def)
   local -a projects=($(_workspace_projects))
+  
+  # Limit results for better autocompletion performance
+  local max_results=50
+  if [[ ${#projects} -gt $max_results ]]; then
+    # If we have a prefix, filter projects that match
+    if [[ -n "$PREFIX" ]]; then
+      local -a filtered_projects=()
+      for project in $projects; do
+        if [[ "$project" == ${PREFIX}* ]]; then
+          filtered_projects+=("$project")
+          if [[ ${#filtered_projects} -ge $max_results ]]; then
+            break
+          fi
+        fi
+      done
+      projects=($filtered_projects)
+    else
+      # Take first N projects if no prefix
+      projects=(${projects[1,$max_results]})
+    fi
+  fi
+  
   # Autocomplete projects as an option$ (eg: nx run demo...).
   _describe -t nx-projects "Nx projects" projects && ret=0
   return ret
@@ -140,10 +173,32 @@ _list_targets() {
   integer ret=1
   local def=$(_workspace_def)
   local nodes_path=$(_get_nodes_path "$def")
+  
+  # Limit results for better autocompletion performance
+  local max_results=100
+  local -a all_targets
+  
   if [[ "$nodes_path" == ".graph.nodes" ]]; then
-    local -a targets=($(<$def | jq -r '.graph.nodes[] | { name: .name, target: (.data.targets | keys[] | if test(":") then . | tojson | gsub(":"; "\\:") else . end ) } | .name + "\\:" + .target'))
+    all_targets=($(<$def | jq -r '.graph.nodes[] | { name: .name, target: (.data.targets | keys[] | if test(":") then . | tojson | gsub(":"; "\\:") else . end ) } | .name + "\\:" + .target'))
   else
-    local -a targets=($(<$def | jq -r '.nodes[] | { name: .name, target: (.data.targets | keys[] | if test(":") then . | tojson | gsub(":"; "\\:") else . end ) } | .name + "\\:" + .target'))
+    all_targets=($(<$def | jq -r '.nodes[] | { name: .name, target: (.data.targets | keys[] | if test(":") then . | tojson | gsub(":"; "\\:") else . end ) } | .name + "\\:" + .target'))
+  fi
+
+  # Filter and limit results
+  local -a targets=()
+  if [[ -n "$PREFIX" ]]; then
+    # Filter targets that match the prefix
+    for target in $all_targets; do
+      if [[ "$target" == ${PREFIX}* ]]; then
+        targets+=("$target")
+        if [[ ${#targets} -ge $max_results ]]; then
+          break
+        fi
+      fi
+    done
+  else
+    # Take first N targets if no prefix
+    targets=(${all_targets[1,$max_results]})
   fi
 
   _describe -t project-targets 'Project targets' targets && ret=0
@@ -156,6 +211,7 @@ _list_generators() {
 
   local -a generators
   local -a plugins
+  local max_results=30
 
   plugins=(${(f)"$(nx list | awk '/Installed/,/Also available:/' | grep generators | awk -F ' ' '{print $1}')"})
 
@@ -164,8 +220,26 @@ _list_generators() {
     pluginGenerators=(${(f)"$(nx list $p | awk '/GENERATORS/,/EXECUTORS/' | grep ' : ' | awk -F " : " '{ print $1}' | awk '{$1=$1};1')"})
     for g in $pluginGenerators; do
       generators+=("$p\:$g")
+      # Limit total generators to prevent overwhelming the user
+      if [[ ${#generators} -ge $max_results ]]; then
+        break 2
+      fi
     done
   done
+
+  # If we have a prefix, filter generators that match
+  if [[ -n "$PREFIX" ]]; then
+    local -a filtered_generators=()
+    for generator in $generators; do
+      if [[ "$generator" == ${PREFIX}* ]]; then
+        filtered_generators+=("$generator")
+        if [[ ${#filtered_generators} -ge $max_results ]]; then
+          break
+        fi
+      fi
+    done
+    generators=($filtered_generators)
+  fi
 
   # Run completion.
   _describe -t nx-generators "Nx generators" generators && ret=0
@@ -303,21 +377,32 @@ _nx_get_executor_options() {
   local executor="$1"
   integer ret=1
   local def=$(_workspace_def)
+  local max_results=25
+  
   if [[ -f "$def" ]]; then
     # Get all option keys for this executor across all projects
     local nodes_path=$(_get_nodes_path "$def")
+    local -a all_options
+    
     if [[ "$nodes_path" == ".graph.nodes" ]]; then
-      jq -r --arg exec "$executor" '
+      all_options=($(jq -r --arg exec "$executor" '
         [.graph.nodes[] | .data.targets[]? | select(.executor == $exec) | .options // {} | keys[]] |
         unique |
         map("--" + . + "[" + . + "]") |
-        .[]' "$def" 2>/dev/null && ret=0
+        .[]' "$def" 2>/dev/null))
     else
-      jq -r --arg exec "$executor" '
+      all_options=($(jq -r --arg exec "$executor" '
         [.nodes[] | .data.targets[]? | select(.executor == $exec) | .options // {} | keys[]] |
         unique |
         map("--" + . + "[" + . + "]") |
-        .[]' "$def" 2>/dev/null && ret=0
+        .[]' "$def" 2>/dev/null))
+    fi
+    
+    # Limit results
+    if [[ ${#all_options} -gt $max_results ]]; then
+      echo "${all_options[1,$max_results]}" && ret=0
+    else
+      echo "${all_options[@]}" && ret=0
     fi
   fi
   return ret
@@ -352,55 +437,81 @@ _nx_get_target_executor() {
 _nx_get_dynamic_command_options() {
   local command="$1"
   local -a dynamic_opts=()
+  local max_results=20
 
   # Get all executors once and filter for the specific command
   local -a all_executors=($(_nx_get_executors))
 
   case "$command" in
     build|b)
-      # Get options from build-related executors
+      # Get options from build-related executors (limit to first few matches)
       local -a build_executors=(${(M)all_executors:#*build*} ${(M)all_executors:#*webpack*} ${(M)all_executors:#*browser*})
+      build_executors=(${build_executors[1,3]}) # Limit to first 3 executors
       for executor in $build_executors; do
         local -a exec_opts=($(_nx_get_executor_options "$executor"))
         dynamic_opts+=($exec_opts)
+        if [[ ${#dynamic_opts} -ge $max_results ]]; then
+          break
+        fi
       done
       ;;
     test|t)
       # Get options from test-related executors
       local -a test_executors=(${(M)all_executors:#*jest*} ${(M)all_executors:#*cypress*} ${(M)all_executors:#*test*})
+      test_executors=(${test_executors[1,3]}) # Limit to first 3 executors
       for executor in $test_executors; do
         local -a exec_opts=($(_nx_get_executor_options "$executor"))
         dynamic_opts+=($exec_opts)
+        if [[ ${#dynamic_opts} -ge $max_results ]]; then
+          break
+        fi
       done
       ;;
     serve|s)
       # Get options from serve-related executors
       local -a serve_executors=(${(M)all_executors:#*serve*} ${(M)all_executors:#*dev-server*})
+      serve_executors=(${serve_executors[1,3]}) # Limit to first 3 executors
       for executor in $serve_executors; do
         local -a exec_opts=($(_nx_get_executor_options "$executor"))
         dynamic_opts+=($exec_opts)
+        if [[ ${#dynamic_opts} -ge $max_results ]]; then
+          break
+        fi
       done
       ;;
     lint|l)
       # Get options from lint-related executors
       local -a lint_executors=(${(M)all_executors:#*lint*} ${(M)all_executors:#*eslint*})
+      lint_executors=(${lint_executors[1,3]}) # Limit to first 3 executors
       for executor in $lint_executors; do
         local -a exec_opts=($(_nx_get_executor_options "$executor"))
         dynamic_opts+=($exec_opts)
+        if [[ ${#dynamic_opts} -ge $max_results ]]; then
+          break
+        fi
       done
       ;;
     e2e|e)
       # Get options from e2e-related executors
       local -a e2e_executors=(${(M)all_executors:#*e2e*} ${(M)all_executors:#*cypress*} ${(M)all_executors:#*playwright*})
+      e2e_executors=(${e2e_executors[1,3]}) # Limit to first 3 executors
       for executor in $e2e_executors; do
         local -a exec_opts=($(_nx_get_executor_options "$executor"))
         dynamic_opts+=($exec_opts)
+        if [[ ${#dynamic_opts} -ge $max_results ]]; then
+          break
+        fi
       done
       ;;
   esac
 
-  # Remove duplicates and return
-  echo "${(u)dynamic_opts[@]}"
+  # Remove duplicates, limit final results, and return
+  dynamic_opts=(${(u)dynamic_opts[@]})
+  if [[ ${#dynamic_opts} -gt $max_results ]]; then
+    echo "${dynamic_opts[1,$max_results]}"
+  else
+    echo "${(u)dynamic_opts[@]}"
+  fi
 }
 
 # Cache-aware wrapper for dynamic option parsing
@@ -487,52 +598,79 @@ _nx_parse_command_options() {
   # Add dynamic executor options for certain commands
   local -a all_executors=($(_nx_get_executors))
   local -a dynamic_opts=()
+  local max_executor_opts=15
   
   case "$command" in
     build|b)
-      # Get options from build-related executors
+      # Get options from build-related executors (limit to first few)
       local -a build_executors=(${(M)all_executors:#*build*} ${(M)all_executors:#*webpack*} ${(M)all_executors:#*browser*})
+      build_executors=(${build_executors[1,2]}) # Limit to first 2 executors
       for executor in $build_executors; do
         local -a exec_opts=($(_nx_get_executor_options "$executor"))
         dynamic_opts+=($exec_opts)
+        if [[ ${#dynamic_opts} -ge $max_executor_opts ]]; then
+          break
+        fi
       done
       ;;
     test|t)
       # Get options from test-related executors
       local -a test_executors=(${(M)all_executors:#*jest*} ${(M)all_executors:#*cypress*} ${(M)all_executors:#*test*})
+      test_executors=(${test_executors[1,2]}) # Limit to first 2 executors
       for executor in $test_executors; do
         local -a exec_opts=($(_nx_get_executor_options "$executor"))
         dynamic_opts+=($exec_opts)
+        if [[ ${#dynamic_opts} -ge $max_executor_opts ]]; then
+          break
+        fi
       done
       ;;
     serve|s)
       # Get options from serve-related executors
       local -a serve_executors=(${(M)all_executors:#*serve*} ${(M)all_executors:#*dev-server*})
+      serve_executors=(${serve_executors[1,2]}) # Limit to first 2 executors
       for executor in $serve_executors; do
         local -a exec_opts=($(_nx_get_executor_options "$executor"))
         dynamic_opts+=($exec_opts)
+        if [[ ${#dynamic_opts} -ge $max_executor_opts ]]; then
+          break
+        fi
       done
       ;;
     e2e)
       # Get options from e2e-related executors
       local -a e2e_executors=(${(M)all_executors:#*cypress*} ${(M)all_executors:#*e2e*})
+      e2e_executors=(${e2e_executors[1,2]}) # Limit to first 2 executors
       for executor in $e2e_executors; do
         local -a exec_opts=($(_nx_get_executor_options "$executor"))
         dynamic_opts+=($exec_opts)
+        if [[ ${#dynamic_opts} -ge $max_executor_opts ]]; then
+          break
+        fi
       done
       ;;
     lint)
       # Get options from lint-related executors
       local -a lint_executors=(${(M)all_executors:#*lint*} ${(M)all_executors:#*eslint*})
+      lint_executors=(${lint_executors[1,2]}) # Limit to first 2 executors
       for executor in $lint_executors; do
         local -a exec_opts=($(_nx_get_executor_options "$executor"))
         dynamic_opts+=($exec_opts)
+        if [[ ${#dynamic_opts} -ge $max_executor_opts ]]; then
+          break
+        fi
       done
       ;;
   esac
 
-  # Combine parsed options with dynamic options (remove duplicates)
+  # Combine parsed options with dynamic options (remove duplicates and limit total)
   parsed_options+=(${(u)dynamic_opts[@]})
+  
+  # Limit total options for performance
+  local max_total_opts=50
+  if [[ ${#parsed_options} -gt $max_total_opts ]]; then
+    parsed_options=(${parsed_options[1,$max_total_opts]})
+  fi
 
   echo "${parsed_options[@]}"
 }
