@@ -105,7 +105,8 @@ test/
 ├── nx.json                                # Nx workspace config
 ├── project-graph-nested.json              # Test graph (.graph.nodes structure)
 ├── test-completion.zsh                    # Automated test script
-├── demo-completion.zsh                    # Interactive demo script
+├── test-cache.zsh                         # Cache performance test script
+├── PERFORMANCE-TESTING.md                 # Real-world performance testing guide
 └── README.md                              # Test environment docs
 ```
 
@@ -115,10 +116,16 @@ test/
 # Run automated tests
 cd test && ./test-completion.zsh
 
+# Test caching performance
+cd test && ./test-cache.zsh
+
 # Interactive completion testing
 cd test
 source ../nx-completion.plugin.zsh
 nx <TAB>  # Test completions
+
+# Performance testing guide
+cd test && cat PERFORMANCE-TESTING.md
 ```
 
 The test environment includes 5 projects (frontend-app, backend-api, shared-utils, ui-components, data-access) with realistic Nx configurations and supports testing both JSON structure formats.

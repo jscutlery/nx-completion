@@ -97,38 +97,85 @@ _get_nodes_path() {
 # Collect workspace projects
 _workspace_projects() {
   integer ret=1
+  local cache_key="nx_workspace_projects"
+  local cache_policy
+
+  # Set up cache policy
+  zstyle -s ":completion:${curcontext}:" cache-policy cache_policy
+  if [[ -z "$cache_policy" ]]; then
+    zstyle ":completion:${curcontext}:" cache-policy _nx_caching_policy
+  fi
+
+  # Check if we have cached projects and they're still valid
+  if ( [[ ${(P)+cache_key} -eq 1 ]] && ! _cache_invalid "$cache_key" ); then
+    echo "${(P)cache_key[@]}"
+    return 0
+  fi
+
   local def=$(_workspace_def)
   local nodes_path=$(_get_nodes_path "$def")
+  local -a projects=()
+
   if [[ "$nodes_path" == ".graph.nodes" ]]; then
-    local -a projects=($(<$def | jq -r '.graph.nodes[] | .name'))
+    projects=($(<$def | jq -r '.graph.nodes[] | .name'))
   else
-    local -a projects=($(<$def | jq -r '.nodes[] | .name'))
+    projects=($(<$def | jq -r '.nodes[] | .name'))
   fi
-  echo $projects && ret=0
+
+  # Cache the results if we got any
+  if [[ ${#projects} -gt 0 ]]; then
+    eval "${cache_key}=(\"\${projects[@]}\")"
+    _store_cache "$cache_key" "${cache_key}"
+    echo "${projects[@]}" && ret=0
+  fi
+
   return ret
 }
 
 # Collect workspace targets
 _nx_workspace_targets() {
   integer ret=1
+  local cache_key="nx_workspace_targets"
+  local max_results=20
+  local cache_policy
+
+  # Set up cache policy
+  zstyle -s ":completion:${curcontext}:" cache-policy cache_policy
+  if [[ -z "$cache_policy" ]]; then
+    zstyle ":completion:${curcontext}:" cache-policy _nx_caching_policy
+  fi
+
+  # Check if we have cached targets and they're still valid
+  if ( [[ ${(P)+cache_key} -eq 1 ]] && ! _cache_invalid "$cache_key" ); then
+    echo "${(P)cache_key[@]}"
+    return 0
+  fi
+
   local def=$(_workspace_def)
   local nodes_path=$(_get_nodes_path "$def")
-  local max_results=20
-  
-  local -a all_targets
+  local -a all_targets=()
+
   if [[ "$nodes_path" == ".graph.nodes" ]]; then
     all_targets=($(jq -r '[.graph.nodes[] | .data.targets | keys[]] | unique[] | if test(":") then . | gsub(":"; "\\:") else . end' "$def"))
   else
     all_targets=($(jq -r '[.nodes[] | .data.targets | keys[]] | unique[] | if test(":") then . | gsub(":"; "\\:") else . end' "$def"))
   fi
-  
+
   # Limit results for better performance
+  local -a limited_targets=()
   if [[ ${#all_targets} -gt $max_results ]]; then
-    echo "${all_targets[1,$max_results]}" && ret=0
+    limited_targets=(${all_targets[1,$max_results]})
   else
-    echo "${all_targets[@]}" && ret=0
+    limited_targets=($all_targets[@])
   fi
-  
+
+  # Cache the results if we got any
+  if [[ ${#limited_targets} -gt 0 ]]; then
+    eval "${cache_key}=(\"\${limited_targets[@]}\")"
+    _store_cache "$cache_key" "${cache_key}"
+    echo "${limited_targets[@]}" && ret=0
+  fi
+
   return ret
 }
 
@@ -139,9 +186,17 @@ _nx_workspace_targets() {
 _list_projects() {
   [[ $PREFIX = -* ]] && return 1
   integer ret=1
+  local cache_policy
+
+  # Set up cache policy
+  zstyle -s ":completion:${curcontext}:" cache-policy cache_policy
+  if [[ -z "$cache_policy" ]]; then
+    zstyle ":completion:${curcontext}:" cache-policy _nx_caching_policy
+  fi
+
   local def=$(_workspace_def)
   local -a projects=($(_workspace_projects))
-  
+
   # Limit results for better autocompletion performance
   local max_results=50
   if [[ ${#projects} -gt $max_results ]]; then
@@ -162,7 +217,7 @@ _list_projects() {
       projects=(${projects[1,$max_results]})
     fi
   fi
-  
+
   # Autocomplete projects as an option$ (eg: nx run demo...).
   _describe -t nx-projects "Nx projects" projects && ret=0
   return ret
@@ -171,20 +226,57 @@ _list_projects() {
 _list_targets() {
   [[ $PREFIX = -* ]] && return 1
   integer ret=1
+  local cache_key="nx_list_targets"
+  local max_results=100
+  local cache_policy
+
+  # Set up cache policy
+  zstyle -s ":completion:${curcontext}:" cache-policy cache_policy
+  if [[ -z "$cache_policy" ]]; then
+    zstyle ":completion:${curcontext}:" cache-policy _nx_caching_policy
+  fi
+
+  # Check if we have cached targets and they're still valid
+  if ( [[ ${(P)+cache_key} -eq 1 ]] && ! _cache_invalid "$cache_key" ); then
+    local -a cached_targets=("${(P)cache_key[@]}")
+
+    # Filter cached results based on PREFIX if provided
+    local -a filtered_targets=()
+    if [[ -n "$PREFIX" ]]; then
+      for target in $cached_targets; do
+        if [[ "$target" == ${PREFIX}* ]]; then
+          filtered_targets+=("$target")
+          if [[ ${#filtered_targets} -ge $max_results ]]; then
+            break
+          fi
+        fi
+      done
+    else
+      # Take first N targets if no prefix
+      filtered_targets=(${cached_targets[1,$max_results]})
+    fi
+
+    _describe -t project-targets 'Project targets' filtered_targets && ret=0
+    return ret
+  fi
+
   local def=$(_workspace_def)
   local nodes_path=$(_get_nodes_path "$def")
-  
-  # Limit results for better autocompletion performance
-  local max_results=100
-  local -a all_targets
-  
+  local -a all_targets=()
+
   if [[ "$nodes_path" == ".graph.nodes" ]]; then
     all_targets=($(<$def | jq -r '.graph.nodes[] | { name: .name, target: (.data.targets | keys[] | if test(":") then . | tojson | gsub(":"; "\\:") else . end ) } | .name + "\\:" + .target'))
   else
     all_targets=($(<$def | jq -r '.nodes[] | { name: .name, target: (.data.targets | keys[] | if test(":") then . | tojson | gsub(":"; "\\:") else . end ) } | .name + "\\:" + .target'))
   fi
 
-  # Filter and limit results
+  # Cache all targets for future use
+  if [[ ${#all_targets} -gt 0 ]]; then
+    eval "${cache_key}=(\"\${all_targets[@]}\")"
+    _store_cache "$cache_key" "${cache_key}"
+  fi
+
+  # Filter and limit results for current completion
   local -a targets=()
   if [[ -n "$PREFIX" ]]; then
     # Filter targets that match the prefix
@@ -208,15 +300,46 @@ _list_targets() {
 _list_generators() {
   [[ $PREFIX = -* ]] && return 1
   integer ret=1
-
-  local -a generators
-  local -a plugins
+  local cache_key="nx_list_generators"
   local max_results=30
+  local cache_policy
+
+  # Set up cache policy
+  zstyle -s ":completion:${curcontext}:" cache-policy cache_policy
+  if [[ -z "$cache_policy" ]]; then
+    zstyle ":completion:${curcontext}:" cache-policy _nx_caching_policy
+  fi
+
+  # Check if we have cached generators and they're still valid
+  if ( [[ ${(P)+cache_key} -eq 1 ]] && ! _cache_invalid "$cache_key" ); then
+    local -a cached_generators=("${(P)cache_key[@]}")
+
+    # Filter cached results based on PREFIX if provided
+    local -a filtered_generators=()
+    if [[ -n "$PREFIX" ]]; then
+      for generator in $cached_generators; do
+        if [[ "$generator" == ${PREFIX}* ]]; then
+          filtered_generators+=("$generator")
+          if [[ ${#filtered_generators} -ge $max_results ]]; then
+            break
+          fi
+        fi
+      done
+    else
+      filtered_generators=(${cached_generators[1,$max_results]})
+    fi
+
+    _describe -t nx-generators "Nx generators" filtered_generators && ret=0
+    return ret
+  fi
+
+  local -a generators=()
+  local -a plugins=()
 
   plugins=(${(f)"$(nx list | awk '/Installed/,/Also available:/' | grep generators | awk -F ' ' '{print $1}')"})
 
   for p in $plugins; do
-    local -a pluginGenerators
+    local -a pluginGenerators=()
     pluginGenerators=(${(f)"$(nx list $p | awk '/GENERATORS/,/EXECUTORS/' | grep ' : ' | awk -F " : " '{ print $1}' | awk '{$1=$1};1')"})
     for g in $pluginGenerators; do
       generators+=("$p\:$g")
@@ -227,9 +350,15 @@ _list_generators() {
     done
   done
 
-  # If we have a prefix, filter generators that match
+  # Cache all generators for future use
+  if [[ ${#generators} -gt 0 ]]; then
+    eval "${cache_key}=(\"\${generators[@]}\")"
+    _store_cache "$cache_key" "${cache_key}"
+  fi
+
+  # Filter generators based on PREFIX if provided
+  local -a filtered_generators=()
   if [[ -n "$PREFIX" ]]; then
-    local -a filtered_generators=()
     for generator in $generators; do
       if [[ "$generator" == ${PREFIX}* ]]; then
         filtered_generators+=("$generator")
@@ -344,15 +473,23 @@ _nx_commands() {
 # Extract all unique executors from project graph
 _nx_get_executors() {
   integer ret=1
+  local cache_key="nx_executors"
+  local cache_policy
+
+  # Set up cache policy
+  zstyle -s ":completion:${curcontext}:" cache-policy cache_policy
+  if [[ -z "$cache_policy" ]]; then
+    zstyle ":completion:${curcontext}:" cache-policy _nx_caching_policy
+  fi
+
+  # Check cache first
+  if ( [[ ${(P)+cache_key} -eq 1 ]] && ! _cache_invalid "$cache_key" ); then
+    echo "${(P)cache_key[@]}"
+    return 0
+  fi
+
   local def=$(_workspace_def)
   if [[ -f "$def" ]]; then
-    # Check cache first
-    local cache_key="nx_executors"
-    if ( [[ ${(P)+cache_key} -eq 1 ]] && ! _cache_invalid "$cache_key" ); then
-      echo "${(P)cache_key[@]}"
-      return 0
-    fi
-
     local nodes_path=$(_get_nodes_path "$def")
     local -a executors=()
     if [[ "$nodes_path" == ".graph.nodes" ]]; then
@@ -376,14 +513,28 @@ _nx_get_executors() {
 _nx_get_executor_options() {
   local executor="$1"
   integer ret=1
-  local def=$(_workspace_def)
+  local cache_key="nx_executor_options_${executor//[^a-zA-Z0-9]/_}"
   local max_results=25
-  
+  local cache_policy
+
+  # Set up cache policy
+  zstyle -s ":completion:${curcontext}:" cache-policy cache_policy
+  if [[ -z "$cache_policy" ]]; then
+    zstyle ":completion:${curcontext}:" cache-policy _nx_caching_policy
+  fi
+
+  # Check cache first
+  if ( [[ ${(P)+cache_key} -eq 1 ]] && ! _cache_invalid "$cache_key" ); then
+    echo "${(P)cache_key[@]}"
+    return 0
+  fi
+
+  local def=$(_workspace_def)
   if [[ -f "$def" ]]; then
     # Get all option keys for this executor across all projects
     local nodes_path=$(_get_nodes_path "$def")
-    local -a all_options
-    
+    local -a all_options=()
+
     if [[ "$nodes_path" == ".graph.nodes" ]]; then
       all_options=($(jq -r --arg exec "$executor" '
         [.graph.nodes[] | .data.targets[]? | select(.executor == $exec) | .options // {} | keys[]] |
@@ -397,12 +548,20 @@ _nx_get_executor_options() {
         map("--" + . + "[" + . + "]") |
         .[]' "$def" 2>/dev/null))
     fi
-    
-    # Limit results
+
+    # Limit results and cache them
+    local -a limited_options=()
     if [[ ${#all_options} -gt $max_results ]]; then
-      echo "${all_options[1,$max_results]}" && ret=0
+      limited_options=(${all_options[1,$max_results]})
     else
-      echo "${all_options[@]}" && ret=0
+      limited_options=($all_options[@])
+    fi
+
+    # Cache the results if we got any
+    if [[ ${#limited_options} -gt 0 ]]; then
+      eval "${cache_key}=(\"\${limited_options[@]}\")"
+      _store_cache "$cache_key" "${cache_key}"
+      echo "${limited_options[@]}" && ret=0
     fi
   fi
   return ret
@@ -411,33 +570,72 @@ _nx_get_executor_options() {
 # Map common target names to likely executors for better completion
 _nx_get_target_executor() {
   local target="$1"
+  local cache_key="nx_target_executor_${target//[^a-zA-Z0-9]/_}"
+  local cache_policy
+
+  # Set up cache policy
+  zstyle -s ":completion:${curcontext}:" cache-policy cache_policy
+  if [[ -z "$cache_policy" ]]; then
+    zstyle ":completion:${curcontext}:" cache-policy _nx_caching_policy
+  fi
+
+  # Check cache first
+  if ( [[ ${(P)+cache_key} -eq 1 ]] && ! _cache_invalid "$cache_key" ); then
+    echo "${(P)cache_key}"
+    return 0
+  fi
+
   local def=$(_workspace_def)
+  local executor=""
   if [[ -f "$def" ]]; then
     # Optimized: find the most common executor for this target name
     local nodes_path=$(_get_nodes_path "$def")
     if [[ "$nodes_path" == ".graph.nodes" ]]; then
-      jq -r --arg target "$target" '
+      executor=$(jq -r --arg target "$target" '
         [.graph.nodes[] | .data.targets[$target]?.executor] |
         map(select(. != null)) |
         group_by(.) |
         max_by(length) |
-        first // empty' "$def" 2>/dev/null
+        first // empty' "$def" 2>/dev/null)
     else
-      jq -r --arg target "$target" '
+      executor=$(jq -r --arg target "$target" '
         [.nodes[] | .data.targets[$target]?.executor] |
         map(select(. != null)) |
         group_by(.) |
         max_by(length) |
-        first // empty' "$def" 2>/dev/null
+        first // empty' "$def" 2>/dev/null)
+    fi
+
+    # Cache the result if we got one
+    if [[ -n "$executor" ]]; then
+      eval "${cache_key}=\"$executor\""
+      _store_cache "$cache_key" "${cache_key}"
     fi
   fi
+
+  echo "$executor"
 }
 
 # Get dynamic options for common Nx commands based on executors
 _nx_get_dynamic_command_options() {
   local command="$1"
-  local -a dynamic_opts=()
+  local cache_key="nx_dynamic_${command}_options"
   local max_results=20
+  local cache_policy
+
+  # Set up cache policy
+  zstyle -s ":completion:${curcontext}:" cache-policy cache_policy
+  if [[ -z "$cache_policy" ]]; then
+    zstyle ":completion:${curcontext}:" cache-policy _nx_caching_policy
+  fi
+
+  # Check if we have cached dynamic options and they're still valid
+  if ( [[ ${(P)+cache_key} -eq 1 ]] && ! _cache_invalid "$cache_key" ); then
+    echo "${(P)cache_key[@]}"
+    return 0
+  fi
+
+  local -a dynamic_opts=()
 
   # Get all executors once and filter for the specific command
   local -a all_executors=($(_nx_get_executors))
@@ -507,17 +705,33 @@ _nx_get_dynamic_command_options() {
 
   # Remove duplicates, limit final results, and return
   dynamic_opts=(${(u)dynamic_opts[@]})
+  local -a final_opts=()
   if [[ ${#dynamic_opts} -gt $max_results ]]; then
-    echo "${dynamic_opts[1,$max_results]}"
+    final_opts=(${dynamic_opts[1,$max_results]})
   else
-    echo "${(u)dynamic_opts[@]}"
+    final_opts=(${(u)dynamic_opts[@]})
   fi
+
+  # Cache the results if we got any
+  if [[ ${#final_opts} -gt 0 ]]; then
+    eval "${cache_key}=(\"\${final_opts[@]}\")"
+    _store_cache "$cache_key" "${cache_key}"
+  fi
+
+  echo "${final_opts[@]}"
 }
 
 # Cache-aware wrapper for dynamic option parsing
 _nx_get_command_options() {
   local command="$1"
   local cache_key="nx_${command}_options"
+  local cache_policy
+
+  # Set up cache policy
+  zstyle -s ":completion:${curcontext}:" cache-policy cache_policy
+  if [[ -z "$cache_policy" ]]; then
+    zstyle ":completion:${curcontext}:" cache-policy _nx_caching_policy
+  fi
 
   # Check if we have cached options and they're still valid
   if ( [[ ${(P)+cache_key} -eq 1 ]] && ! _cache_invalid "$cache_key" ); then
@@ -599,7 +813,7 @@ _nx_parse_command_options() {
   local -a all_executors=($(_nx_get_executors))
   local -a dynamic_opts=()
   local max_executor_opts=15
-  
+
   case "$command" in
     build|b)
       # Get options from build-related executors (limit to first few)
@@ -665,7 +879,7 @@ _nx_parse_command_options() {
 
   # Combine parsed options with dynamic options (remove duplicates and limit total)
   parsed_options+=(${(u)dynamic_opts[@]})
-  
+
   # Limit total options for performance
   local max_total_opts=50
   if [[ ${#parsed_options} -gt $max_total_opts ]]; then

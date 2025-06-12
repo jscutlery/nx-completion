@@ -11,7 +11,8 @@ test/
 │       └── project-graph.json      # Main test project graph (uses .nodes structure)
 ├── nx.json                         # Nx workspace configuration
 ├── project-graph-nested.json       # Alternative test file (uses .graph.nodes structure)
-├── test-completion.zsh             # Test script
+├── test-completion.zsh             # Functional test script
+├── test-cache.zsh                  # Cache performance test script
 └── README.md                       # This file
 ```
 
@@ -43,8 +44,8 @@ The simplified project graph includes:
 
 ## How to Test
 
-### Quick Test Script
-Run the automated test script:
+### Functional Testing
+Run the automated functional test script:
 ```bash
 cd test
 ./test-completion.zsh
@@ -57,6 +58,20 @@ This will test:
 - Target listing
 - Executor listing
 - Both `.nodes` and `.graph.nodes` JSON structures
+
+### Cache Performance Testing
+Run the cache performance test script:
+```bash
+cd test
+./test-cache.zsh
+```
+
+This comprehensive test will verify:
+- Cache variable creation and validation
+- Performance improvements from caching
+- Cache invalidation functionality
+- All caching functions in the plugin
+- Code verification (confirms caching code is present)
 
 ### Interactive Testing
 For manual completion testing:
